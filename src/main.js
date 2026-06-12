@@ -9,7 +9,7 @@ const config = {
   height: 640,
   backgroundColor: "#15162f",
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH
   },
   scene: [SpiritSortScene]

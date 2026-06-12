@@ -84,14 +84,15 @@ const SOUND_TONES = {
   ]
 };
 
-const LAYOUT = {
+const BASE_LAYOUT = {
   shelfWidth: 116,
   shelfHeight: 284,
   shelfGap: 28,
   spiritSize: 52,
   slotGap: 58,
   boardTop: 230,
-  selectedTopLift: 12
+  selectedTopLift: 12,
+  hudHeight: 118
 };
 
 export default class SpiritSortScene extends Phaser.Scene {
@@ -107,12 +108,17 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.hasWon = false;
     this.moveHistory = [];
     this.shelfViews = [];
+    this.boardLayout = null;
 
     this.createBackground();
     this.loadLevel(0);
     this.createHud();
     this.redrawBoard();
     this.registerKeyboard();
+    this.scale.on("resize", this.handleResize, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.handleResize, this);
+    });
   }
 
   loadLevel(levelIndex) {
@@ -135,10 +141,28 @@ export default class SpiritSortScene extends Phaser.Scene {
     }
   }
 
+  handleResize() {
+    if (this.isAnimating) return;
+
+    this.createBackground();
+    this.createHud();
+    this.redrawBoard();
+
+    if (this.hasWon) {
+      this.showWinMessage();
+    }
+  }
+
   createBackground() {
+    if (this.backgroundContainer) {
+      this.backgroundContainer.destroy(true);
+    }
+
+    this.backgroundContainer = this.add.container(0, 0).setDepth(0);
     const { width, height } = this.scale;
 
     const sky = this.add.graphics();
+    this.backgroundContainer.add(sky);
     sky.fillGradientStyle(
       COLORS.backgroundTop,
       COLORS.backgroundTop,
@@ -164,6 +188,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.createDistantShrine();
 
     const mist = this.add.graphics();
+    this.backgroundContainer.add(mist);
     mist.fillStyle(0x8b78a8, 0.08);
     mist.fillEllipse(width / 2, height - 98, width * 0.9, 72);
     mist.fillStyle(0xf7d783, 0.06);
@@ -173,45 +198,56 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   createMoonGlow() {
-    this.add.circle(812, 92, 92, 0xf6e8b7, 0.07);
-    this.add.circle(812, 92, 62, 0xf6e8b7, 0.12);
-    this.add.circle(812, 92, 42, 0xf6e8b7, 0.88);
-    this.add.circle(794, 84, 42, COLORS.backgroundTop, 1);
+    const { width, height } = this.scale;
+    const moonX = width * 0.84;
+    const moonY = Math.max(64, height * 0.13);
+
+    this.backgroundContainer.add(this.add.circle(moonX, moonY, 92, 0xf6e8b7, 0.07));
+    this.backgroundContainer.add(this.add.circle(moonX, moonY, 62, 0xf6e8b7, 0.12));
+    this.backgroundContainer.add(this.add.circle(moonX, moonY, 42, 0xf6e8b7, 0.88));
+    this.backgroundContainer.add(this.add.circle(moonX - 18, moonY - 8, 42, COLORS.backgroundTop, 1));
 
     for (let i = 0; i < 22; i += 1) {
-      const x = 42 + ((i * 83) % 860);
-      const y = 52 + ((i * 47) % 190);
+      const x = 24 + ((i * 83) % Math.max(280, width - 48));
+      const y = 46 + ((i * 47) % Math.max(100, height * 0.28));
       const alpha = 0.16 + (i % 4) * 0.05;
-      this.add.circle(x, y, 1 + (i % 3), 0xffe9a8, alpha);
+      this.backgroundContainer.add(this.add.circle(x, y, 1 + (i % 3), 0xffe9a8, alpha));
     }
   }
 
   createDistantShrine() {
     const { width, height } = this.scale;
     const scenery = this.add.graphics();
+    this.backgroundContainer.add(scenery);
 
     scenery.fillStyle(0x0f1427, 0.86);
-    scenery.fillTriangle(0, height, 170, 438, 360, height);
-    scenery.fillTriangle(210, height, 472, 414, 720, height);
-    scenery.fillTriangle(580, height, 798, 432, width, height);
+    scenery.fillTriangle(0, height, width * 0.18, height * 0.68, width * 0.38, height);
+    scenery.fillTriangle(width * 0.2, height, width * 0.5, height * 0.64, width * 0.77, height);
+    scenery.fillTriangle(width * 0.58, height, width * 0.84, height * 0.67, width, height);
 
     scenery.fillStyle(COLORS.shrineShadow, 0.9);
-    scenery.fillRect(448, 346, 16, 134);
-    scenery.fillRect(604, 346, 16, 134);
-    scenery.fillRect(414, 330, 240, 18);
-    scenery.fillRect(438, 308, 192, 14);
-    scenery.fillTriangle(398, 330, 534, 272, 670, 330);
-    scenery.fillRect(482, 356, 106, 90);
-    scenery.fillTriangle(454, 356, 535, 314, 618, 356);
+    const shrineX = width * 0.56;
+    const shrineY = height * 0.54;
+    const shrineScale = Phaser.Math.Clamp(width / 960, 0.46, 1);
+    scenery.fillRect(shrineX - 86 * shrineScale, shrineY, 16 * shrineScale, 134 * shrineScale);
+    scenery.fillRect(shrineX + 70 * shrineScale, shrineY, 16 * shrineScale, 134 * shrineScale);
+    scenery.fillRect(shrineX - 120 * shrineScale, shrineY - 16 * shrineScale, 240 * shrineScale, 18 * shrineScale);
+    scenery.fillRect(shrineX - 96 * shrineScale, shrineY - 38 * shrineScale, 192 * shrineScale, 14 * shrineScale);
+    scenery.fillTriangle(shrineX - 136 * shrineScale, shrineY - 16 * shrineScale, shrineX, shrineY - 74 * shrineScale, shrineX + 136 * shrineScale, shrineY - 16 * shrineScale);
+    scenery.fillRect(shrineX - 52 * shrineScale, shrineY + 10 * shrineScale, 106 * shrineScale, 90 * shrineScale);
+    scenery.fillTriangle(shrineX - 80 * shrineScale, shrineY + 10 * shrineScale, shrineX, shrineY - 32 * shrineScale, shrineX + 84 * shrineScale, shrineY + 10 * shrineScale);
     scenery.fillStyle(0xf7d783, 0.18);
-    scenery.fillRect(520, 370, 28, 52);
+    scenery.fillRect(shrineX - 14 * shrineScale, shrineY + 24 * shrineScale, 28 * shrineScale, 52 * shrineScale);
   }
 
   createFireflies() {
+    const { width, height } = this.scale;
+
     for (let i = 0; i < 16; i += 1) {
-      const x = 60 + ((i * 61) % 845);
-      const y = 182 + ((i * 41) % 280);
+      const x = 32 + ((i * 61) % Math.max(260, width - 64));
+      const y = height * 0.25 + ((i * 41) % Math.max(120, height * 0.42));
       const dot = this.add.circle(x, y, 2 + (i % 2), 0xffe8a0, 0.28);
+      this.backgroundContainer.add(dot);
 
       this.tweens.add({
         targets: dot,
@@ -225,50 +261,114 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   createHud() {
+    if (this.hudContainer) {
+      this.hudContainer.destroy(true);
+    }
+
+    this.hudContainer = this.add.container(0, 0).setDepth(18);
+    const hud = this.getHudLayout();
     const hudBand = this.add
-      .rectangle(this.scale.width / 2, 56, this.scale.width, 112, 0x17142d, 0.46)
-      .setDepth(18);
+      .rectangle(this.scale.width / 2, hud.bandHeight / 2, this.scale.width, hud.bandHeight, 0x17142d, 0.46);
     hudBand.setStrokeStyle(1, 0xd7aa68, 0.16);
+    this.hudContainer.add(hudBand);
 
     this.titleText = this.add
-      .text(48, 34, "Spirit Shelf Sort", {
+      .text(hud.title.x, hud.title.y, "Spirit Shelf Sort", {
         fontFamily: "Arial",
-        fontSize: "32px",
+        fontSize: `${hud.title.fontSize}px`,
         color: COLORS.text,
         fontStyle: "bold"
       })
-      .setDepth(20);
+      .setOrigin(hud.title.originX, 0.5);
     this.titleText.setShadow(0, 2, "#050511", 4);
+    this.hudContainer.add(this.titleText);
 
     this.levelText = this.add
-      .text(50, 77, "", {
+      .text(hud.level.x, hud.level.y, "", {
         fontFamily: "Arial",
-        fontSize: "18px",
-        color: COLORS.mutedText
+        fontSize: `${hud.level.fontSize}px`,
+        color: COLORS.mutedText,
+        wordWrap: { width: hud.level.wrapWidth, useAdvancedWrap: true }
       })
-      .setDepth(20);
+      .setOrigin(hud.level.originX, 0.5);
     this.levelText.setShadow(0, 1, "#050511", 3);
+    this.hudContainer.add(this.levelText);
 
-    this.previousButton = this.createButton(558, 42, 74, "Prev", () => this.goToLevel(this.currentLevelIndex - 1));
-    this.restartButton = this.createButton(660, 42, 104, "Restart", () => this.restartLevel());
-    this.undoButton = this.createButton(768, 42, 84, "Undo", () => this.undoLastMove());
-    this.nextButton = this.createButton(870, 42, 74, "Next", () => this.goToLevel(this.currentLevelIndex + 1));
+    this.previousButton = this.createButton(hud.buttons.prev.x, hud.buttonsY, hud.buttons.prev.width, "Prev", () => this.goToLevel(this.currentLevelIndex - 1));
+    this.restartButton = this.createButton(hud.buttons.restart.x, hud.buttonsY, hud.buttons.restart.width, "Restart", () => this.restartLevel());
+    this.undoButton = this.createButton(hud.buttons.undo.x, hud.buttonsY, hud.buttons.undo.width, "Undo", () => this.undoLastMove());
+    this.nextButton = this.createButton(hud.buttons.next.x, hud.buttonsY, hud.buttons.next.width, "Next", () => this.goToLevel(this.currentLevelIndex + 1));
+    this.hudContainer.add([this.previousButton, this.restartButton, this.undoButton, this.nextButton]);
 
     this.updateHud();
   }
 
+  getHudLayout() {
+    const width = this.scale.width;
+    const isNarrow = width < 700;
+
+    if (!isNarrow) {
+      return {
+        bandHeight: BASE_LAYOUT.hudHeight,
+        title: { x: 48, y: 50, fontSize: 32, originX: 0 },
+        level: { x: 50, y: 84, fontSize: 18, originX: 0, wrapWidth: 470 },
+        buttonsY: 42,
+        buttonHeight: 38,
+        buttonFontSize: 16,
+        buttons: {
+          prev: { x: width - 402, width: 74 },
+          restart: { x: width - 300, width: 104 },
+          undo: { x: width - 192, width: 84 },
+          next: { x: width - 90, width: 74 }
+        }
+      };
+    }
+
+    const gap = width < 360 ? 6 : 8;
+    const buttonWidths = {
+      prev: width < 360 ? 58 : 62,
+      restart: width < 360 ? 78 : 84,
+      undo: width < 360 ? 64 : 70,
+      next: width < 360 ? 58 : 62
+    };
+    const totalButtonsWidth = buttonWidths.prev + buttonWidths.restart + buttonWidths.undo + buttonWidths.next + gap * 3;
+    let x = (width - totalButtonsWidth) / 2;
+
+    const nextButton = (buttonWidth) => {
+      const center = x + buttonWidth / 2;
+      x += buttonWidth + gap;
+      return center;
+    };
+
+    return {
+      bandHeight: 142,
+      title: { x: width / 2, y: 26, fontSize: width < 360 ? 22 : 24, originX: 0.5 },
+      level: { x: width / 2, y: 58, fontSize: width < 360 ? 13 : 14, originX: 0.5, wrapWidth: width - 24 },
+      buttonsY: 108,
+      buttonHeight: 42,
+      buttonFontSize: width < 360 ? 13 : 14,
+      buttons: {
+        prev: { x: nextButton(buttonWidths.prev), width: buttonWidths.prev },
+        restart: { x: nextButton(buttonWidths.restart), width: buttonWidths.restart },
+        undo: { x: nextButton(buttonWidths.undo), width: buttonWidths.undo },
+        next: { x: nextButton(buttonWidths.next), width: buttonWidths.next }
+      }
+    };
+  }
+
   createButton(x, y, width, label, onClick) {
-    const container = this.add.container(x, y).setDepth(25);
+    const hud = this.getHudLayout();
+    const container = this.add.container(x, y);
     const background = this.add
-      .rectangle(0, 0, width, 38, 0x342538, 0.96)
+      .rectangle(0, 0, width, hud.buttonHeight, 0x342538, 0.96)
       .setStrokeStyle(2, COLORS.shelfGold, 0.78);
-    const shine = this.add.rectangle(0, -13, width - 12, 4, 0xffe2a5, 0.18);
-    const leftCap = this.add.rectangle(-width / 2 + 7, 0, 5, 26, COLORS.shelfWoodLight, 0.7);
-    const rightCap = this.add.rectangle(width / 2 - 7, 0, 5, 26, COLORS.shelfWoodLight, 0.7);
+    const shine = this.add.rectangle(0, -hud.buttonHeight * 0.34, width - 12, 4, 0xffe2a5, 0.18);
+    const leftCap = this.add.rectangle(-width / 2 + 7, 0, 5, hud.buttonHeight - 12, COLORS.shelfWoodLight, 0.7);
+    const rightCap = this.add.rectangle(width / 2 - 7, 0, 5, hud.buttonHeight - 12, COLORS.shelfWoodLight, 0.7);
     const text = this.add
       .text(0, 0, label, {
         fontFamily: "Arial",
-        fontSize: "16px",
+        fontSize: `${hud.buttonFontSize}px`,
         color: COLORS.text,
         fontStyle: "bold"
       })
@@ -277,7 +377,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     container.add([background, shine, leftCap, rightCap, text]);
     container.buttonBackground = background;
     container.buttonText = text;
-    container.setSize(width, 38);
+    container.setSize(width, hud.buttonHeight);
     container.setInteractive({ useHandCursor: true });
     container.on("pointerdown", onClick);
     container.on("pointerover", () => background.setFillStyle(0x4b3b68, 0.98));
@@ -354,6 +454,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       this.boardContainer.destroy(true);
     }
 
+    this.boardLayout = this.getResponsiveBoardLayout();
     this.boardContainer = this.add.container(0, 0).setDepth(10);
     this.shelfViews = [];
 
@@ -366,52 +467,116 @@ export default class SpiritSortScene extends Phaser.Scene {
     });
   }
 
-  getShelfPositions() {
-    const count = this.shelves.length;
-    const totalWidth = count * LAYOUT.shelfWidth + (count - 1) * LAYOUT.shelfGap;
-    const startX = (this.scale.width - totalWidth) / 2 + LAYOUT.shelfWidth / 2;
+  getResponsiveBoardLayout() {
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const shelfCount = this.shelves.length;
+    const margin = Phaser.Math.Clamp(width * 0.045, 12, 44);
+    const isNarrow = width < 700;
+    const columns = isNarrow ? Math.min(3, shelfCount) : shelfCount;
+    const rows = Math.ceil(shelfCount / columns);
+    const gap = Phaser.Math.Clamp(isNarrow ? width * 0.03 : BASE_LAYOUT.shelfGap, 10, BASE_LAYOUT.shelfGap);
+    const rowGap = rows > 1 ? Phaser.Math.Clamp(height * 0.035, 18, 34) : 0;
+    const hudHeight = this.getHudLayout().bandHeight;
+    const availableWidth = Math.max(280, width - margin * 2);
+    const availableHeight = Math.max(260, height - hudHeight - 32);
+    const shelfWidth = Phaser.Math.Clamp(
+      (availableWidth - gap * (columns - 1)) / columns,
+      82,
+      BASE_LAYOUT.shelfWidth
+    );
+    const shelfHeight = Phaser.Math.Clamp(
+      (availableHeight - rowGap * (rows - 1)) / rows - 28,
+      154,
+      BASE_LAYOUT.shelfHeight
+    );
+    const scale = shelfHeight / BASE_LAYOUT.shelfHeight;
+    const spiritSize = Phaser.Math.Clamp(BASE_LAYOUT.spiritSize * scale, 34, BASE_LAYOUT.spiritSize);
+    const slotGap = Math.max(spiritSize + 5, (shelfHeight - 58) / Math.max(1, this.capacity - 1));
+    const boardTop = hudHeight + Phaser.Math.Clamp(height * 0.035, 16, 38);
 
-    return this.shelves.map((_, index) => ({
-      x: startX + index * (LAYOUT.shelfWidth + LAYOUT.shelfGap),
-      y: LAYOUT.boardTop
-    }));
+    return {
+      columns,
+      rows,
+      gap,
+      rowGap,
+      shelfWidth,
+      shelfHeight,
+      spiritSize,
+      slotGap,
+      boardTop,
+      selectedTopLift: Phaser.Math.Clamp(BASE_LAYOUT.selectedTopLift * scale, 7, BASE_LAYOUT.selectedTopLift)
+    };
+  }
+
+  getCurrentLayout() {
+    if (!this.boardLayout) {
+      this.boardLayout = this.getResponsiveBoardLayout();
+    }
+
+    return this.boardLayout;
+  }
+
+  getShelfPositions() {
+    const layout = this.getCurrentLayout();
+    const positions = [];
+
+    for (let row = 0; row < layout.rows; row += 1) {
+      const rowStart = row * layout.columns;
+      const rowCount = Math.min(layout.columns, this.shelves.length - rowStart);
+      const totalWidth = rowCount * layout.shelfWidth + (rowCount - 1) * layout.gap;
+      const startX = (this.scale.width - totalWidth) / 2 + layout.shelfWidth / 2;
+      const y = layout.boardTop + row * (layout.shelfHeight + layout.rowGap + 28);
+
+      for (let column = 0; column < rowCount; column += 1) {
+        positions[rowStart + column] = {
+          x: startX + column * (layout.shelfWidth + layout.gap),
+          y
+        };
+      }
+    }
+
+    return positions;
   }
 
   createShelfView(index, position, shelf) {
+    const layout = this.getCurrentLayout();
     const container = this.add.container(position.x, position.y);
     const selected = this.selectedShelfIndex === index;
     const complete = isShelfComplete(shelf, this.capacity);
 
     const glowColor = selected ? COLORS.selected : COLORS.complete;
     const glowAlpha = selected ? 0.46 : complete ? 0.26 : 0;
-    const glow = this.add.rectangle(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth + 28, LAYOUT.shelfHeight + 34, glowColor, glowAlpha);
+    const glow = this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + 28, layout.shelfHeight + 34, glowColor, glowAlpha);
     glow.setStrokeStyle(selected ? 4 : 2, glowColor, selected || complete ? 0.85 : 0);
 
+    const roofHalf = layout.shelfWidth / 2 + 18;
+    const roofInset = Math.max(24, layout.shelfWidth / 2 - 2);
     const roof = this.add
-      .polygon(0, -20, [-76, 18, 76, 18, 56, -10, -56, -10], COLORS.shelfWoodDark, 1)
+      .polygon(0, -20, [-roofHalf, 18, roofHalf, 18, roofInset, -10, -roofInset, -10], COLORS.shelfWoodDark, 1)
       .setStrokeStyle(2, COLORS.shelfGold, 0.7);
-    const roofTrim = this.add.rectangle(0, -2, LAYOUT.shelfWidth + 34, 10, COLORS.shelfWoodLight, 1);
+    const roofTrim = this.add.rectangle(0, -2, layout.shelfWidth + 34, 10, COLORS.shelfWoodLight, 1);
     const back = this.add
-      .rectangle(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth, LAYOUT.shelfHeight, COLORS.shelfInside, 0.86)
+      .rectangle(0, layout.shelfHeight / 2, layout.shelfWidth, layout.shelfHeight, COLORS.shelfInside, 0.86)
       .setStrokeStyle(4, COLORS.shelfWoodLight, 0.92);
-    const innerGlow = this.add.rectangle(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth - 24, LAYOUT.shelfHeight - 28, 0xf7d783, 0.05);
+    const innerGlow = this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth - 24, layout.shelfHeight - 28, 0xf7d783, 0.05);
 
-    const leftPost = this.add.rectangle(-LAYOUT.shelfWidth / 2 + 9, LAYOUT.shelfHeight / 2, 14, LAYOUT.shelfHeight + 18, COLORS.shelfWood, 1);
-    const rightPost = this.add.rectangle(LAYOUT.shelfWidth / 2 - 9, LAYOUT.shelfHeight / 2, 14, LAYOUT.shelfHeight + 18, COLORS.shelfWood, 1);
-    const baseShadow = this.add.rectangle(0, LAYOUT.shelfHeight + 13, LAYOUT.shelfWidth + 34, 10, COLORS.shelfWoodDark, 1);
-    const base = this.add.rectangle(0, LAYOUT.shelfHeight + 5, LAYOUT.shelfWidth + 30, 20, COLORS.shelfWoodLight, 1);
-    const top = this.add.rectangle(0, 11, LAYOUT.shelfWidth + 10, 8, COLORS.shelfWoodLight, 0.95);
+    const leftPost = this.add.rectangle(-layout.shelfWidth / 2 + 9, layout.shelfHeight / 2, 14, layout.shelfHeight + 18, COLORS.shelfWood, 1);
+    const rightPost = this.add.rectangle(layout.shelfWidth / 2 - 9, layout.shelfHeight / 2, 14, layout.shelfHeight + 18, COLORS.shelfWood, 1);
+    const baseShadow = this.add.rectangle(0, layout.shelfHeight + 13, layout.shelfWidth + 34, 10, COLORS.shelfWoodDark, 1);
+    const base = this.add.rectangle(0, layout.shelfHeight + 5, layout.shelfWidth + 30, 20, COLORS.shelfWoodLight, 1);
+    const top = this.add.rectangle(0, 11, layout.shelfWidth + 10, 8, COLORS.shelfWoodLight, 0.95);
 
     const planks = [];
     for (let i = 1; i < this.capacity; i += 1) {
-      planks.push(this.add.rectangle(0, LAYOUT.shelfHeight - 62 - i * LAYOUT.slotGap, LAYOUT.shelfWidth - 26, 3, COLORS.shelfWoodLight, 0.24));
+      planks.push(this.add.rectangle(0, layout.shelfHeight - 62 - i * layout.slotGap, layout.shelfWidth - 26, 3, COLORS.shelfWoodLight, 0.24));
     }
 
-    const charm = this.add.circle(0, LAYOUT.shelfHeight + 5, 5, COLORS.shelfGold, 0.8);
-    const leftKnot = this.add.circle(-LAYOUT.shelfWidth / 2 + 9, 46, 3, COLORS.shelfWoodDark, 0.7);
-    const rightKnot = this.add.circle(LAYOUT.shelfWidth / 2 - 9, 116, 3, COLORS.shelfWoodDark, 0.7);
+    const charm = this.add.circle(0, layout.shelfHeight + 5, 5, COLORS.shelfGold, 0.8);
+    const leftKnot = this.add.circle(-layout.shelfWidth / 2 + 9, 46, 3, COLORS.shelfWoodDark, 0.7);
+    const rightKnot = this.add.circle(layout.shelfWidth / 2 - 9, Math.min(116, layout.shelfHeight - 36), 3, COLORS.shelfWoodDark, 0.7);
 
-    const zone = this.add.zone(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth + 26, LAYOUT.shelfHeight + 36);
+    const zone = this.add.zone(0, layout.shelfHeight / 2, Math.max(72, layout.shelfWidth + 32), layout.shelfHeight + 46);
     zone.setInteractive({ useHandCursor: true });
     zone.on("pointerdown", () => this.handleShelfTap(index));
 
@@ -445,7 +610,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       const isSelectedTop = selected && stackIndex === shelf.length - 1;
       const spirit = this.createSpiritVisual(
         local.x,
-        local.y - (isSelectedTop ? LAYOUT.selectedTopLift : 0),
+        local.y - (isSelectedTop ? layout.selectedTopLift : 0),
         spiritType
       );
 
@@ -458,15 +623,15 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     if (complete) {
       for (let i = 0; i < 4; i += 1) {
-        const sparkleX = -36 + i * 24;
-        const sparkleY = 20 + (i % 2) * 18;
+        const sparkleX = -layout.shelfWidth * 0.32 + i * (layout.shelfWidth * 0.21);
+        const sparkleY = 20 + (i % 2) * 16;
         container.add(this.add.circle(sparkleX, sparkleY, 3, COLORS.complete, 0.58));
       }
 
       const restoredText = this.add
-        .text(0, LAYOUT.shelfHeight + 27, "restored", {
+        .text(0, layout.shelfHeight + 27, "restored", {
           fontFamily: "Arial",
-          fontSize: "13px",
+          fontSize: `${layout.shelfWidth < 92 ? 11 : 13}px`,
           color: "#9df0d2",
           fontStyle: "bold"
         })
@@ -488,10 +653,12 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   createSpiritVisual(x, y, spiritType) {
+    const layout = this.getCurrentLayout();
     const config = SPIRIT_TYPES[spiritType] ?? SPIRIT_TYPES.fire;
     const container = this.add.container(x, y);
+    const spiritScale = layout.spiritSize / BASE_LAYOUT.spiritSize;
 
-    const glow = this.add.circle(0, 0, LAYOUT.spiritSize / 2 + 10, config.glow, 0.2);
+    const glow = this.add.circle(0, 0, BASE_LAYOUT.spiritSize / 2 + 10, config.glow, 0.2);
     const shadow = this.add.ellipse(0, 22, 40, 10, 0x0c0b18, 0.18);
     const bodyParts = this.createSpiritBodyParts(spiritType, config);
 
@@ -507,6 +674,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     container.add([glow, shadow, ...bodyParts, eyeLeft, eyeRight, label]);
+    container.setScale(spiritScale);
     return container;
   }
 
@@ -586,6 +754,7 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   moveSpirit(sourceIndex, targetIndex) {
+    const layout = this.getCurrentLayout();
     const movingSpirit = this.shelves[sourceIndex][this.shelves[sourceIndex].length - 1];
     const start = this.getSpiritWorldPosition(sourceIndex, this.shelves[sourceIndex].length - 1);
     const end = this.getSpiritWorldPosition(targetIndex, this.shelves[targetIndex].length);
@@ -607,7 +776,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     const movingVisual = this.createSpiritVisual(start.x, start.y, movingSpirit).setDepth(40);
     const midPoint = {
       x: (start.x + end.x) / 2,
-      y: Math.min(start.y, end.y) - 84
+      y: Math.min(start.y, end.y) - Phaser.Math.Clamp(layout.shelfHeight * 0.3, 42, 84)
     };
 
     this.tweens.add({
@@ -644,9 +813,11 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   getSpiritLocalPosition(stackIndex) {
+    const layout = this.getCurrentLayout();
+
     return {
       x: 0,
-      y: LAYOUT.shelfHeight - 38 - stackIndex * LAYOUT.slotGap
+      y: layout.shelfHeight - 38 - stackIndex * layout.slotGap
     };
   }
 
@@ -676,6 +847,7 @@ export default class SpiritSortScene extends Phaser.Scene {
   playLandingFeedback(shelfIndex, completedNow = false) {
     const view = this.shelfViews[shelfIndex];
     if (!view) return;
+    const layout = this.getCurrentLayout();
 
     this.tweens.add({
       targets: view.container,
@@ -686,7 +858,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       ease: "Sine.easeOut"
     });
 
-    this.createSparkles(view.position.x, view.position.y + 58, completedNow ? 12 : 6);
+    this.createSparkles(view.position.x, view.position.y + Math.min(58, layout.shelfHeight * 0.25), completedNow ? 12 : 6);
 
     if (completedNow) {
       this.tweens.add({
@@ -720,9 +892,10 @@ export default class SpiritSortScene extends Phaser.Scene {
   playInvalidMoveFeedback(shelfIndex) {
     const view = this.shelfViews[shelfIndex];
     if (!view) return;
+    const layout = this.getCurrentLayout();
 
     const flash = this.add
-      .rectangle(view.position.x, view.position.y + LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth + 34, LAYOUT.shelfHeight + 40, COLORS.invalid, 0.34)
+      .rectangle(view.position.x, view.position.y + layout.shelfHeight / 2, layout.shelfWidth + 34, layout.shelfHeight + 40, COLORS.invalid, 0.34)
       .setDepth(35);
     flash.setStrokeStyle(3, COLORS.invalid, 0.85);
 
@@ -787,15 +960,24 @@ export default class SpiritSortScene extends Phaser.Scene {
       this.winContainer.destroy(true);
     }
 
-    this.winContainer = this.add.container(this.scale.width / 2, 154).setDepth(50);
+    const width = this.scale.width;
+    const hud = this.getHudLayout();
+    const panelWidth = Math.min(500, width - 24);
+    const panelHeight = width < 420 ? 150 : 132;
+    const panelY = hud.bandHeight + panelHeight / 2 + 14;
+    const titleFontSize = width < 420 ? 23 : 28;
+    const detailFontSize = width < 420 ? 13 : 16;
+    const buttonY = width < 420 ? 46 : 38;
+
+    this.winContainer = this.add.container(width / 2, panelY).setDepth(50);
 
     const panel = this.add
-      .rectangle(0, 0, 500, 132, 0x211c37, 0.92)
+      .rectangle(0, 0, panelWidth, panelHeight, 0x211c37, 0.92)
       .setStrokeStyle(3, COLORS.complete, 0.9);
     const title = this.add
-      .text(0, -38, "Shrine restored!", {
+      .text(0, -panelHeight * 0.3, "Shrine restored!", {
         fontFamily: "Arial",
-        fontSize: "28px",
+        fontSize: `${titleFontSize}px`,
         color: COLORS.text,
         fontStyle: "bold"
       })
@@ -804,12 +986,14 @@ export default class SpiritSortScene extends Phaser.Scene {
     const detail = this.add
       .text(0, -2, isLastLevel ? "Final prototype level restored. Undo is still available." : "Next level is ready. Undo is still available.", {
         fontFamily: "Arial",
-        fontSize: "16px",
-        color: "#bfeadf"
+        fontSize: `${detailFontSize}px`,
+        color: "#bfeadf",
+        align: "center",
+        wordWrap: { width: panelWidth - 30, useAdvancedWrap: true }
       })
       .setOrigin(0.5);
-    const restartButton = this.createWinButton(-74, 38, 124, "Restart", () => this.restartLevel());
-    const nextButton = this.createWinButton(78, 38, 132, "Next Level", () => this.goToLevel(this.currentLevelIndex + 1));
+    const restartButton = this.createWinButton(-Math.min(74, panelWidth * 0.19), buttonY, Math.min(124, panelWidth * 0.38), "Restart", () => this.restartLevel());
+    const nextButton = this.createWinButton(Math.min(78, panelWidth * 0.2), buttonY, Math.min(132, panelWidth * 0.4), "Next Level", () => this.goToLevel(this.currentLevelIndex + 1));
     nextButton.setAlpha(isLastLevel ? 0.45 : 1);
 
     this.winContainer.add([panel, title, detail, restartButton, nextButton]);

@@ -31,6 +31,27 @@ export function applyMove(shelves, sourceIndex, targetIndex, capacity = DEFAULT_
   return movingSpirit;
 }
 
+export function undoMove(shelves, move) {
+  if (!move) return null;
+
+  const source = shelves[move.sourceIndex];
+  const target = shelves[move.targetIndex];
+
+  if (!source || !target || target.length === 0) {
+    return null;
+  }
+
+  const movingSpirit = target[target.length - 1];
+
+  if (movingSpirit !== move.spirit) {
+    return null;
+  }
+
+  target.pop();
+  source.push(movingSpirit);
+  return movingSpirit;
+}
+
 export function isShelfComplete(shelf, capacity = DEFAULT_SHELF_CAPACITY) {
   if (!shelf || shelf.length !== capacity) return false;
 

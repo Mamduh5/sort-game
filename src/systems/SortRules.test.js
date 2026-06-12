@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { applyMove, canMove, isShelfComplete, isSolved } from "./SortRules.js";
+import { applyMove, canMove, isShelfComplete, isSolved, undoMove } from "./SortRules.js";
 
 const capacity = 4;
 
@@ -17,6 +17,14 @@ assert.deepEqual(shelves, [["leaf"], ["fire"]]);
 const invalidMoveShelves = [["fire"], ["leaf"]];
 assert.equal(applyMove(invalidMoveShelves, 0, 1, capacity), null, "invalid apply returns null");
 assert.deepEqual(invalidMoveShelves, [["fire"], ["leaf"]], "invalid apply does not mutate shelves");
+
+const undoShelves = [["leaf"], ["fire"]];
+assert.equal(undoMove(undoShelves, { sourceIndex: 0, targetIndex: 1, spirit: "fire" }), "fire");
+assert.deepEqual(undoShelves, [["leaf", "fire"], []], "undo returns moved spirit to source");
+
+const invalidUndoShelves = [["leaf"], ["fire"]];
+assert.equal(undoMove(invalidUndoShelves, { sourceIndex: 0, targetIndex: 1, spirit: "moon" }), null);
+assert.deepEqual(invalidUndoShelves, [["leaf"], ["fire"]], "invalid undo does not mutate shelves");
 
 assert.equal(isShelfComplete(["moon", "moon", "moon", "moon"], capacity), true);
 assert.equal(isShelfComplete(["moon", "moon"], capacity), false);

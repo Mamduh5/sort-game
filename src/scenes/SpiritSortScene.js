@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { cloneLevel, SPIRIT_SORT_LEVELS } from "../data/spiritSortLevels.js";
-import { applyMove, canMove, isShelfComplete, isSolved } from "../systems/SortRules.js";
+import { applyMove, canMove, isShelfComplete, isSolved, undoMove } from "../systems/SortRules.js";
 
 const SPIRIT_TYPES = {
   fire: {
@@ -53,6 +53,33 @@ const COLORS = {
   mutedText: "#c7bfe8"
 };
 
+const SOUND_TONES = {
+  move: [
+    { frequency: 440, duration: 0.07, delay: 0, gain: 0.03 },
+    { frequency: 554, duration: 0.08, delay: 0.055, gain: 0.026 }
+  ],
+  invalid: [
+    { frequency: 180, duration: 0.09, delay: 0, gain: 0.025, type: "triangle" }
+  ],
+  complete: [
+    { frequency: 523, duration: 0.08, delay: 0, gain: 0.025 },
+    { frequency: 659, duration: 0.09, delay: 0.06, gain: 0.023 },
+    { frequency: 784, duration: 0.1, delay: 0.13, gain: 0.02 }
+  ],
+  win: [
+    { frequency: 523, duration: 0.1, delay: 0, gain: 0.025 },
+    { frequency: 659, duration: 0.1, delay: 0.08, gain: 0.023 },
+    { frequency: 784, duration: 0.16, delay: 0.17, gain: 0.021 }
+  ],
+  button: [
+    { frequency: 392, duration: 0.045, delay: 0, gain: 0.018 }
+  ],
+  undo: [
+    { frequency: 554, duration: 0.055, delay: 0, gain: 0.022 },
+    { frequency: 440, duration: 0.08, delay: 0.05, gain: 0.02 }
+  ]
+};
+
 const LAYOUT = {
   shelfWidth: 116,
   shelfHeight: 284,
@@ -74,6 +101,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.isAnimating = false;
     this.hiddenSpirit = null;
     this.hasWon = false;
+    this.moveHistory = [];
     this.shelfViews = [];
 
     this.createBackground();
@@ -95,6 +123,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.isAnimating = false;
     this.hiddenSpirit = null;
     this.hasWon = false;
+    this.moveHistory = [];
 
     if (this.winContainer) {
       this.winContainer.destroy(true);
@@ -149,9 +178,10 @@ export default class SpiritSortScene extends Phaser.Scene {
       })
       .setDepth(20);
 
-    this.restartButton = this.createButton(742, 42, 142, "Restart", () => this.restartLevel());
-    this.previousButton = this.createButton(650, 42, 74, "Prev", () => this.goToLevel(this.currentLevelIndex - 1));
-    this.nextButton = this.createButton(868, 42, 74, "Next", () => this.goToLevel(this.currentLevelIndex + 1));
+    this.previousButton = this.createButton(558, 42, 74, "Prev", () => this.goToLevel(this.currentLevelIndex - 1));
+    this.restartButton = this.createButton(660, 42, 104, "Restart", () => this.restartLevel());
+    this.undoButton = this.createButton(768, 42, 84, "Undo", () => this.undoLastMove());
+    this.nextButton = this.createButton(870, 42, 74, "Next", () => this.goToLevel(this.currentLevelIndex + 1));
 
     this.updateHud();
   }
@@ -171,6 +201,8 @@ export default class SpiritSortScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     container.add([background, text]);
+    container.buttonBackground = background;
+    container.buttonText = text;
     container.setSize(width, 38);
     container.setInteractive({ useHandCursor: true });
     container.on("pointerdown", onClick);
@@ -184,6 +216,8 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-R", () => this.restartLevel());
     this.input.keyboard.on("keydown-N", () => this.goToLevel(this.currentLevelIndex + 1));
     this.input.keyboard.on("keydown-P", () => this.goToLevel(this.currentLevelIndex - 1));
+    this.input.keyboard.on("keydown-U", () => this.undoLastMove());
+    this.input.keyboard.on("keydown-BACKSPACE", () => this.undoLastMove());
   }
 
   updateHud() {
@@ -193,11 +227,13 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     this.previousButton.setAlpha(this.currentLevelIndex === 0 ? 0.45 : 1);
     this.nextButton.setAlpha(this.currentLevelIndex === SPIRIT_SORT_LEVELS.length - 1 ? 0.45 : 1);
+    this.undoButton.setAlpha(this.canUndo() ? 1 : 0.45);
   }
 
   restartLevel() {
     if (this.isAnimating) return;
 
+    this.playSound("button");
     this.loadLevel(this.currentLevelIndex);
     this.updateHud();
     this.redrawBoard();
@@ -209,9 +245,34 @@ export default class SpiritSortScene extends Phaser.Scene {
     const nextIndex = Phaser.Math.Clamp(levelIndex, 0, SPIRIT_SORT_LEVELS.length - 1);
     if (nextIndex === this.currentLevelIndex) return;
 
+    this.playSound("button");
     this.loadLevel(nextIndex);
     this.updateHud();
     this.redrawBoard();
+  }
+
+  canUndo() {
+    return this.moveHistory.length > 0 && !this.isAnimating;
+  }
+
+  undoLastMove() {
+    if (!this.canUndo()) return;
+
+    const move = this.moveHistory.pop();
+    const undoneSpirit = undoMove(this.shelves, move);
+
+    if (!undoneSpirit) {
+      this.updateHud();
+      return;
+    }
+
+    this.selectedShelfIndex = null;
+    this.hiddenSpirit = null;
+    this.clearWinState();
+    this.redrawBoard();
+    this.playSound("undo");
+    this.playUndoFeedback(move.sourceIndex);
+    this.updateHud();
   }
 
   redrawBoard() {
@@ -368,6 +429,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     if (!canMove(this.shelves, sourceIndex, targetIndex, this.capacity)) {
       this.selectedShelfIndex = null;
       this.redrawBoard();
+      this.playSound("invalid");
       this.playInvalidMoveFeedback(targetIndex);
       return;
     }
@@ -386,6 +448,8 @@ export default class SpiritSortScene extends Phaser.Scene {
     const targetWasComplete = isShelfComplete(this.shelves[targetIndex], this.capacity);
 
     applyMove(this.shelves, sourceIndex, targetIndex, this.capacity);
+    this.moveHistory.push({ sourceIndex, targetIndex, spirit: movingSpirit });
+    this.updateHud();
     this.hiddenSpirit = {
       shelfIndex: targetIndex,
       stackIndex: this.shelves[targetIndex].length - 1
@@ -421,7 +485,9 @@ export default class SpiritSortScene extends Phaser.Scene {
               targetIndex,
               !targetWasComplete && isShelfComplete(this.shelves[targetIndex], this.capacity)
             );
+            this.playSound(isShelfComplete(this.shelves[targetIndex], this.capacity) && !targetWasComplete ? "complete" : "move");
             this.isAnimating = false;
+            this.updateHud();
             this.checkWin();
           }
         });
@@ -488,6 +554,21 @@ export default class SpiritSortScene extends Phaser.Scene {
     }
   }
 
+  playUndoFeedback(shelfIndex) {
+    const view = this.shelfViews[shelfIndex];
+    if (!view) return;
+
+    this.tweens.add({
+      targets: view.container,
+      y: view.position.y - 6,
+      scaleX: 1.02,
+      scaleY: 1.02,
+      duration: 90,
+      yoyo: true,
+      ease: "Sine.easeOut"
+    });
+  }
+
   playInvalidMoveFeedback(shelfIndex) {
     const view = this.shelfViews[shelfIndex];
     if (!view) return;
@@ -540,7 +621,17 @@ export default class SpiritSortScene extends Phaser.Scene {
     if (!isSolved(this.shelves, this.capacity)) return;
 
     this.hasWon = true;
+    this.playSound("win");
     this.showWinMessage();
+  }
+
+  clearWinState() {
+    this.hasWon = false;
+
+    if (this.winContainer) {
+      this.winContainer.destroy(true);
+      this.winContainer = null;
+    }
   }
 
   showWinMessage() {
@@ -551,25 +642,29 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.winContainer = this.add.container(this.scale.width / 2, 154).setDepth(50);
 
     const panel = this.add
-      .rectangle(0, 0, 440, 106, 0x211c37, 0.92)
+      .rectangle(0, 0, 500, 132, 0x211c37, 0.92)
       .setStrokeStyle(3, COLORS.complete, 0.9);
     const title = this.add
-      .text(0, -24, "Shrine restored!", {
+      .text(0, -38, "Shrine restored!", {
         fontFamily: "Arial",
         fontSize: "28px",
         color: COLORS.text,
         fontStyle: "bold"
       })
       .setOrigin(0.5);
+    const isLastLevel = this.currentLevelIndex === SPIRIT_SORT_LEVELS.length - 1;
     const detail = this.add
-      .text(0, 13, "Press R to replay or N for the next level.", {
+      .text(0, -2, isLastLevel ? "Final prototype level restored. Undo is still available." : "Next level is ready. Undo is still available.", {
         fontFamily: "Arial",
         fontSize: "16px",
         color: "#bfeadf"
       })
       .setOrigin(0.5);
+    const restartButton = this.createWinButton(-74, 38, 124, "Restart", () => this.restartLevel());
+    const nextButton = this.createWinButton(78, 38, 132, "Next Level", () => this.goToLevel(this.currentLevelIndex + 1));
+    nextButton.setAlpha(isLastLevel ? 0.45 : 1);
 
-    this.winContainer.add([panel, title, detail]);
+    this.winContainer.add([panel, title, detail, restartButton, nextButton]);
     this.tweens.add({
       targets: this.winContainer,
       scale: {
@@ -578,6 +673,76 @@ export default class SpiritSortScene extends Phaser.Scene {
       },
       duration: 160,
       ease: "Back.easeOut"
+    });
+  }
+
+  createWinButton(x, y, width, label, onClick) {
+    const container = this.add.container(x, y);
+    const background = this.add
+      .rectangle(0, 0, width, 34, 0x3a3157, 0.96)
+      .setStrokeStyle(2, 0xc2a86e, 0.72);
+    const text = this.add
+      .text(0, 0, label, {
+        fontFamily: "Arial",
+        fontSize: "15px",
+        color: COLORS.text,
+        fontStyle: "bold"
+      })
+      .setOrigin(0.5);
+
+    container.add([background, text]);
+    container.setSize(width, 34);
+    container.setInteractive({ useHandCursor: true });
+    container.on("pointerdown", onClick);
+    container.on("pointerover", () => background.setFillStyle(0x4b3b68, 0.98));
+    container.on("pointerout", () => background.setFillStyle(0x3a3157, 0.96));
+
+    return container;
+  }
+
+  playSound(soundName) {
+    const audioContext = this.sound?.context;
+    const tones = SOUND_TONES[soundName];
+
+    if (!audioContext || !tones) return;
+
+    const play = () => this.playToneSequence(audioContext, tones);
+
+    if (audioContext.state === "running") {
+      play();
+      return;
+    }
+
+    audioContext.resume?.().then(() => {
+      if (audioContext.state === "running") {
+        play();
+      }
+    }).catch(() => {});
+  }
+
+  playToneSequence(audioContext, tones) {
+    const now = audioContext.currentTime;
+
+    tones.forEach((tone) => {
+      try {
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        const startAt = now + tone.delay;
+        const endAt = startAt + tone.duration;
+
+        oscillator.type = tone.type ?? "sine";
+        oscillator.frequency.setValueAtTime(tone.frequency, startAt);
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(tone.gain, startAt + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(startAt);
+        oscillator.stop(endAt + 0.02);
+      } catch {
+        // Browser audio may still be unavailable until a user gesture unlocks it.
+      }
     });
   }
 }

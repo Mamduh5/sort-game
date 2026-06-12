@@ -41,13 +41,8 @@ const SPIRIT_TYPES = {
 };
 
 const ASSET_ROOT = "/assets/spirit-sort";
-const OPTIONAL_SPIRIT_ASSETS = {
-  fire: `${ASSET_ROOT}/spirits/spirit-fire.png`,
-  leaf: `${ASSET_ROOT}/spirits/spirit-leaf.png`,
-  moon: `${ASSET_ROOT}/spirits/spirit-moon.png`,
-  cloud: `${ASSET_ROOT}/spirits/spirit-cloud.png`,
-  star: `${ASSET_ROOT}/spirits/spirit-star.png`
-};
+const SPIRIT_ASSET_ROOT = `${ASSET_ROOT}/spirits`;
+const SPIRIT_MANIFEST_PATH = `${SPIRIT_ASSET_ROOT}/manifest.json`;
 
 const COLORS = {
   backgroundTop: 0x15162f,
@@ -115,6 +110,7 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   create() {
+    this.isSceneAlive = true;
     this.currentLevelIndex = 0;
     this.selectedShelfIndex = null;
     this.isAnimating = false;
@@ -127,7 +123,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.boardLayout = null;
     this.hintEffects = [];
 
-    this.preloadOptionalSpiritAssets();
+    this.loadOptionalSpiritAssetsFromManifest();
     this.createBackground();
     this.loadLevel(0);
     this.createHud();
@@ -135,6 +131,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.registerKeyboard();
     this.scale.on("resize", this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.isSceneAlive = false;
       this.scale.off("resize", this.handleResize, this);
     });
   }
@@ -162,35 +159,55 @@ export default class SpiritSortScene extends Phaser.Scene {
     }
   }
 
-  preloadOptionalSpiritAssets() {
-    Object.entries(OPTIONAL_SPIRIT_ASSETS).forEach(([spiritType, path]) => {
-      const textureKey = this.getSpiritTextureKey(spiritType);
+  async loadOptionalSpiritAssetsFromManifest() {
+    let manifest;
 
-      if (this.textures.exists(textureKey)) {
-        this.optionalSpiritTextureKeys.add(spiritType);
-        return;
+    try {
+      const response = await fetch(SPIRIT_MANIFEST_PATH, { cache: "no-cache" });
+      if (!response.ok) return;
+      manifest = await response.json();
+    } catch {
+      return;
+    }
+
+    if (!this.isSceneAlive || !manifest?.spirits || typeof manifest.spirits !== "object") return;
+
+    Object.entries(manifest.spirits).forEach(([spiritType, fileName]) => {
+      if (!SPIRIT_TYPES[spiritType] || typeof fileName !== "string" || fileName.trim() === "") return;
+
+      this.loadOptionalSpiritImage(spiritType, `${SPIRIT_ASSET_ROOT}/${fileName}`);
+    });
+  }
+
+  loadOptionalSpiritImage(spiritType, path) {
+    const textureKey = this.getSpiritTextureKey(spiritType);
+
+    if (this.textures.exists(textureKey)) {
+      this.optionalSpiritTextureKeys.add(spiritType);
+      return;
+    }
+
+    if (this.optionalSpiritAssetRequests.has(textureKey)) return;
+    this.optionalSpiritAssetRequests.add(textureKey);
+
+    const image = new Image();
+    image.onload = () => {
+      if (!this.isSceneAlive) return;
+
+      if (!this.textures.exists(textureKey)) {
+        this.textures.addImage(textureKey, image);
       }
 
-      if (this.optionalSpiritAssetRequests.has(textureKey)) return;
-      this.optionalSpiritAssetRequests.add(textureKey);
+      this.optionalSpiritTextureKeys.add(spiritType);
 
-      const image = new Image();
-      image.onload = () => {
-        if (!this.textures.exists(textureKey)) {
-          this.textures.addImage(textureKey, image);
-        }
-
-        this.optionalSpiritTextureKeys.add(spiritType);
-
-        if (!this.isAnimating && this.boardContainer) {
-          this.redrawBoard();
-        }
-      };
-      image.onerror = () => {
-        this.optionalSpiritAssetRequests.delete(textureKey);
-      };
-      image.src = path;
-    });
+      if (!this.isAnimating && this.boardContainer) {
+        this.redrawBoard();
+      }
+    };
+    image.onerror = () => {
+      this.optionalSpiritAssetRequests.delete(textureKey);
+    };
+    image.src = path;
   }
 
   getSpiritTextureKey(spiritType) {

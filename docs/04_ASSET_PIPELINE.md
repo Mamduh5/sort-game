@@ -32,6 +32,29 @@ Recommended format:
 - readable at small size when stacked on shelves
 - no text baked into the image
 
+## Spirit Manifest
+
+Spirit PNGs are loaded through:
+
+```txt
+public/assets/spirit-sort/spirits/manifest.json
+```
+
+The manifest lists only spirit images that actually exist. The starter manifest is empty, so every spirit uses code-drawn fallback art and the browser does not request missing PNGs.
+
+Example after adding real files:
+
+```json
+{
+  "spirits": {
+    "fire": "spirit-fire.png",
+    "leaf": "spirit-leaf.png"
+  }
+}
+```
+
+When a real PNG is added, put it in `public/assets/spirit-sort/spirits/` and add its filename to the manifest. Missing entries intentionally use placeholder art. Avoid listing a PNG until the file exists.
+
 ## Future Shelf And Background Assets
 
 Shelves are still code-drawn. If shelf PNGs are added later, use:
@@ -62,7 +85,7 @@ Recommended format:
 
 ## Runtime Fallback Behavior
 
-The scene probes for the expected spirit PNGs at runtime. If a file exists, that spirit type uses the image. If the file is missing, the scene keeps using the current code-drawn placeholder spirit. Missing optional assets should not break gameplay.
+The scene loads the spirit manifest first, then loads only the PNG files listed there. If a spirit type is not listed, the scene keeps using the current code-drawn placeholder spirit. If the manifest fails to load, all spirits use placeholders. Missing optional assets should not break gameplay.
 
 ## GPT Image Prompts
 

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { cloneLevel, SPIRIT_SORT_LEVELS } from "../data/spiritSortLevels.js";
-import { applyMove, canMove, isShelfComplete, isSolved, undoMove } from "../systems/SortRules.js";
+import { applyMove, canMove, findHintMove, isShelfComplete, isSolved, undoMove } from "../systems/SortRules.js";
 
 const SPIRIT_TYPES = {
   fire: {
@@ -107,8 +107,11 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.hiddenSpirit = null;
     this.hasWon = false;
     this.moveHistory = [];
+    this.moveCount = 0;
+    this.isMuted = false;
     this.shelfViews = [];
     this.boardLayout = null;
+    this.hintEffects = [];
 
     this.createBackground();
     this.loadLevel(0);
@@ -134,6 +137,9 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.hiddenSpirit = null;
     this.hasWon = false;
     this.moveHistory = [];
+    this.moveCount = 0;
+
+    this.clearHintFeedback();
 
     if (this.winContainer) {
       this.winContainer.destroy(true);
@@ -294,11 +300,24 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.levelText.setShadow(0, 1, "#050511", 3);
     this.hudContainer.add(this.levelText);
 
-    this.previousButton = this.createButton(hud.buttons.prev.x, hud.buttonsY, hud.buttons.prev.width, "Prev", () => this.goToLevel(this.currentLevelIndex - 1));
-    this.restartButton = this.createButton(hud.buttons.restart.x, hud.buttonsY, hud.buttons.restart.width, "Restart", () => this.restartLevel());
-    this.undoButton = this.createButton(hud.buttons.undo.x, hud.buttonsY, hud.buttons.undo.width, "Undo", () => this.undoLastMove());
-    this.nextButton = this.createButton(hud.buttons.next.x, hud.buttonsY, hud.buttons.next.width, "Next", () => this.goToLevel(this.currentLevelIndex + 1));
-    this.hudContainer.add([this.previousButton, this.restartButton, this.undoButton, this.nextButton]);
+    this.moveText = this.add
+      .text(hud.moves.x, hud.moves.y, "", {
+        fontFamily: "Arial",
+        fontSize: `${hud.moves.fontSize}px`,
+        color: COLORS.text,
+        fontStyle: "bold"
+      })
+      .setOrigin(hud.moves.originX, 0.5);
+    this.moveText.setShadow(0, 1, "#050511", 3);
+    this.hudContainer.add(this.moveText);
+
+    this.previousButton = this.createButton(hud.buttons.prev.x, hud.buttons.prev.y, hud.buttons.prev.width, "Prev", () => this.goToLevel(this.currentLevelIndex - 1));
+    this.restartButton = this.createButton(hud.buttons.restart.x, hud.buttons.restart.y, hud.buttons.restart.width, "Restart", () => this.restartLevel());
+    this.undoButton = this.createButton(hud.buttons.undo.x, hud.buttons.undo.y, hud.buttons.undo.width, "Undo", () => this.undoLastMove());
+    this.hintButton = this.createButton(hud.buttons.hint.x, hud.buttons.hint.y, hud.buttons.hint.width, "Hint", () => this.showHint());
+    this.muteButton = this.createButton(hud.buttons.mute.x, hud.buttons.mute.y, hud.buttons.mute.width, "Sound", () => this.toggleMute());
+    this.nextButton = this.createButton(hud.buttons.next.x, hud.buttons.next.y, hud.buttons.next.width, "Next", () => this.goToLevel(this.currentLevelIndex + 1));
+    this.hudContainer.add([this.previousButton, this.restartButton, this.undoButton, this.hintButton, this.muteButton, this.nextButton]);
 
     this.updateHud();
   }
@@ -308,52 +327,65 @@ export default class SpiritSortScene extends Phaser.Scene {
     const isNarrow = width < 700;
 
     if (!isNarrow) {
+      const buttonSpecs = [
+        ["prev", 62],
+        ["restart", 88],
+        ["undo", 70],
+        ["hint", 70],
+        ["mute", 86],
+        ["next", 62]
+      ];
+      const buttons = this.layoutButtonRow(width - 24, 42, buttonSpecs, 8);
+
       return {
         bandHeight: BASE_LAYOUT.hudHeight,
         title: { x: 48, y: 50, fontSize: 32, originX: 0 },
-        level: { x: 50, y: 84, fontSize: 18, originX: 0, wrapWidth: 470 },
-        buttonsY: 42,
+        level: { x: 50, y: 82, fontSize: 17, originX: 0, wrapWidth: Math.max(300, width - 610) },
+        moves: { x: 50, y: 106, fontSize: 15, originX: 0 },
         buttonHeight: 38,
         buttonFontSize: 16,
-        buttons: {
-          prev: { x: width - 402, width: 74 },
-          restart: { x: width - 300, width: 104 },
-          undo: { x: width - 192, width: 84 },
-          next: { x: width - 90, width: 74 }
-        }
+        buttons
       };
     }
 
     const gap = width < 360 ? 6 : 8;
-    const buttonWidths = {
-      prev: width < 360 ? 58 : 62,
-      restart: width < 360 ? 78 : 84,
-      undo: width < 360 ? 64 : 70,
-      next: width < 360 ? 58 : 62
-    };
-    const totalButtonsWidth = buttonWidths.prev + buttonWidths.restart + buttonWidths.undo + buttonWidths.next + gap * 3;
-    let x = (width - totalButtonsWidth) / 2;
-
-    const nextButton = (buttonWidth) => {
-      const center = x + buttonWidth / 2;
-      x += buttonWidth + gap;
-      return center;
-    };
+    const firstRow = this.layoutButtonRow(width / 2, 114, [
+      ["prev", width < 360 ? 58 : 62],
+      ["restart", width < 360 ? 78 : 84],
+      ["undo", width < 360 ? 62 : 68]
+    ], gap, true);
+    const secondRow = this.layoutButtonRow(width / 2, 160, [
+      ["hint", width < 360 ? 58 : 64],
+      ["mute", width < 360 ? 78 : 86],
+      ["next", width < 360 ? 58 : 62]
+    ], gap, true);
 
     return {
-      bandHeight: 142,
+      bandHeight: 190,
       title: { x: width / 2, y: 26, fontSize: width < 360 ? 22 : 24, originX: 0.5 },
       level: { x: width / 2, y: 58, fontSize: width < 360 ? 13 : 14, originX: 0.5, wrapWidth: width - 24 },
-      buttonsY: 108,
+      moves: { x: width / 2, y: 82, fontSize: width < 360 ? 13 : 14, originX: 0.5 },
       buttonHeight: 42,
       buttonFontSize: width < 360 ? 13 : 14,
-      buttons: {
-        prev: { x: nextButton(buttonWidths.prev), width: buttonWidths.prev },
-        restart: { x: nextButton(buttonWidths.restart), width: buttonWidths.restart },
-        undo: { x: nextButton(buttonWidths.undo), width: buttonWidths.undo },
-        next: { x: nextButton(buttonWidths.next), width: buttonWidths.next }
-      }
+      buttons: { ...firstRow, ...secondRow }
     };
+  }
+
+  layoutButtonRow(anchorX, y, buttonSpecs, gap, centered = false) {
+    const totalWidth = buttonSpecs.reduce((sum, [, buttonWidth]) => sum + buttonWidth, 0) + gap * (buttonSpecs.length - 1);
+    let x = centered ? anchorX - totalWidth / 2 : anchorX - totalWidth;
+    const buttons = {};
+
+    buttonSpecs.forEach(([key, buttonWidth]) => {
+      buttons[key] = {
+        x: x + buttonWidth / 2,
+        y,
+        width: buttonWidth
+      };
+      x += buttonWidth + gap;
+    });
+
+    return buttons;
   }
 
   createButton(x, y, width, label, onClick) {
@@ -392,16 +424,21 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-P", () => this.goToLevel(this.currentLevelIndex - 1));
     this.input.keyboard.on("keydown-U", () => this.undoLastMove());
     this.input.keyboard.on("keydown-BACKSPACE", () => this.undoLastMove());
+    this.input.keyboard.on("keydown-H", () => this.showHint());
+    this.input.keyboard.on("keydown-M", () => this.toggleMute());
   }
 
   updateHud() {
     this.levelText.setText(
       `Level ${this.currentLevelIndex + 1} / ${SPIRIT_SORT_LEVELS.length}: ${this.currentLevel.name}`
     );
+    this.moveText.setText(`Moves: ${this.moveCount}`);
 
     this.previousButton.setAlpha(this.currentLevelIndex === 0 ? 0.45 : 1);
     this.nextButton.setAlpha(this.currentLevelIndex === SPIRIT_SORT_LEVELS.length - 1 ? 0.45 : 1);
     this.undoButton.setAlpha(this.canUndo() ? 1 : 0.45);
+    this.hintButton.setAlpha(this.canUseHint() ? 1 : 0.45);
+    this.muteButton.buttonText.setText(this.isMuted ? "Muted" : "Sound");
   }
 
   restartLevel() {
@@ -442,6 +479,7 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     this.selectedShelfIndex = null;
     this.hiddenSpirit = null;
+    this.moveCount = Math.max(0, this.moveCount - 1);
     this.clearWinState();
     this.redrawBoard();
     this.playSound("undo");
@@ -449,7 +487,39 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.updateHud();
   }
 
+  canUseHint() {
+    return !this.isAnimating && !this.hasWon;
+  }
+
+  showHint() {
+    if (!this.canUseHint()) return;
+
+    const hint = findHintMove(this.shelves, this.capacity);
+
+    if (!hint) {
+      this.playSound("invalid");
+      this.playHudPulse();
+      return;
+    }
+
+    this.selectedShelfIndex = null;
+    this.redrawBoard();
+    this.playSound("button");
+    this.playHintFeedback(hint.sourceIndex, hint.targetIndex);
+  }
+
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    this.updateHud();
+
+    if (!this.isMuted) {
+      this.playSound("button");
+    }
+  }
+
   redrawBoard() {
+    this.clearHintFeedback();
+
     if (this.boardContainer) {
       this.boardContainer.destroy(true);
     }
@@ -473,27 +543,27 @@ export default class SpiritSortScene extends Phaser.Scene {
     const shelfCount = this.shelves.length;
     const margin = Phaser.Math.Clamp(width * 0.045, 12, 44);
     const isNarrow = width < 700;
-    const columns = isNarrow ? Math.min(3, shelfCount) : shelfCount;
+    const columns = isNarrow ? Math.min(shelfCount, shelfCount > 6 ? 4 : 3) : shelfCount;
     const rows = Math.ceil(shelfCount / columns);
     const gap = Phaser.Math.Clamp(isNarrow ? width * 0.03 : BASE_LAYOUT.shelfGap, 10, BASE_LAYOUT.shelfGap);
     const rowGap = rows > 1 ? Phaser.Math.Clamp(height * 0.035, 18, 34) : 0;
     const hudHeight = this.getHudLayout().bandHeight;
     const availableWidth = Math.max(280, width - margin * 2);
-    const availableHeight = Math.max(260, height - hudHeight - 32);
+    const boardTop = hudHeight + Phaser.Math.Clamp(height * 0.035, 16, 38);
+    const availableHeight = Math.max(220, height - boardTop - 40);
     const shelfWidth = Phaser.Math.Clamp(
       (availableWidth - gap * (columns - 1)) / columns,
       82,
       BASE_LAYOUT.shelfWidth
     );
     const shelfHeight = Phaser.Math.Clamp(
-      (availableHeight - rowGap * (rows - 1)) / rows - 28,
-      154,
+      (availableHeight - (rows - 1) * (rowGap + 28)) / rows,
+      isNarrow ? 118 : 154,
       BASE_LAYOUT.shelfHeight
     );
     const scale = shelfHeight / BASE_LAYOUT.shelfHeight;
-    const spiritSize = Phaser.Math.Clamp(BASE_LAYOUT.spiritSize * scale, 34, BASE_LAYOUT.spiritSize);
+    const spiritSize = Phaser.Math.Clamp(BASE_LAYOUT.spiritSize * scale, isNarrow ? 28 : 34, BASE_LAYOUT.spiritSize);
     const slotGap = Math.max(spiritSize + 5, (shelfHeight - 58) / Math.max(1, this.capacity - 1));
-    const boardTop = hudHeight + Phaser.Math.Clamp(height * 0.035, 16, 38);
 
     return {
       columns,
@@ -766,6 +836,7 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     applyMove(this.shelves, sourceIndex, targetIndex, this.capacity);
     this.moveHistory.push({ sourceIndex, targetIndex, spirit: movingSpirit });
+    this.moveCount += 1;
     this.updateHud();
     this.hiddenSpirit = {
       shelfIndex: targetIndex,
@@ -889,6 +960,84 @@ export default class SpiritSortScene extends Phaser.Scene {
     });
   }
 
+  playHintFeedback(sourceIndex, targetIndex) {
+    this.clearHintFeedback();
+
+    const sourceView = this.shelfViews[sourceIndex];
+    const targetView = this.shelfViews[targetIndex];
+    if (!sourceView || !targetView) return;
+
+    const sourcePulse = this.createHintPulse(sourceView.position.x, sourceView.position.y, COLORS.selected);
+    const targetPulse = this.createHintPulse(targetView.position.x, targetView.position.y, COLORS.complete);
+    const guideLine = this.add
+      .line(
+        0,
+        0,
+        sourceView.position.x,
+        sourceView.position.y + 12,
+        targetView.position.x,
+        targetView.position.y + 12,
+        COLORS.shelfGold,
+        0.72
+      )
+      .setOrigin(0)
+      .setLineWidth(4)
+      .setDepth(38);
+    this.hintEffects.push(sourcePulse, targetPulse, guideLine);
+
+    [sourcePulse, targetPulse].forEach((pulse) => {
+      this.tweens.add({
+        targets: pulse,
+        scaleX: 1.12,
+        scaleY: 1.06,
+        alpha: 0,
+        duration: 720,
+        ease: "Sine.easeOut",
+        onComplete: () => pulse.destroy()
+      });
+    });
+
+    this.tweens.add({
+      targets: guideLine,
+      alpha: 0,
+      duration: 680,
+      ease: "Sine.easeOut",
+      onComplete: () => guideLine.destroy()
+    });
+  }
+
+  clearHintFeedback() {
+    if (!this.hintEffects) return;
+
+    this.hintEffects.forEach((effect) => {
+      if (effect?.active) {
+        effect.destroy();
+      }
+    });
+    this.hintEffects = [];
+  }
+
+  createHintPulse(x, y, color) {
+    const layout = this.getCurrentLayout();
+    return this.add
+      .rectangle(x, y + layout.shelfHeight / 2, layout.shelfWidth + 42, layout.shelfHeight + 56, color, 0.22)
+      .setStrokeStyle(4, color, 0.9)
+      .setDepth(37);
+  }
+
+  playHudPulse() {
+    if (!this.moveText) return;
+
+    this.tweens.add({
+      targets: this.moveText,
+      alpha: 0.35,
+      duration: 90,
+      yoyo: true,
+      repeat: 2,
+      ease: "Sine.easeInOut"
+    });
+  }
+
   playInvalidMoveFeedback(shelfIndex) {
     const view = this.shelfViews[shelfIndex];
     if (!view) return;
@@ -963,11 +1112,11 @@ export default class SpiritSortScene extends Phaser.Scene {
     const width = this.scale.width;
     const hud = this.getHudLayout();
     const panelWidth = Math.min(500, width - 24);
-    const panelHeight = width < 420 ? 150 : 132;
+    const panelHeight = width < 420 ? 178 : 154;
     const panelY = hud.bandHeight + panelHeight / 2 + 14;
     const titleFontSize = width < 420 ? 23 : 28;
     const detailFontSize = width < 420 ? 13 : 16;
-    const buttonY = width < 420 ? 46 : 38;
+    const buttonY = width < 420 ? 58 : 50;
 
     this.winContainer = this.add.container(width / 2, panelY).setDepth(50);
 
@@ -975,7 +1124,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       .rectangle(0, 0, panelWidth, panelHeight, 0x211c37, 0.92)
       .setStrokeStyle(3, COLORS.complete, 0.9);
     const title = this.add
-      .text(0, -panelHeight * 0.3, "Shrine restored!", {
+      .text(0, -panelHeight * 0.34, "Level complete", {
         fontFamily: "Arial",
         fontSize: `${titleFontSize}px`,
         color: COLORS.text,
@@ -984,7 +1133,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       .setOrigin(0.5);
     const isLastLevel = this.currentLevelIndex === SPIRIT_SORT_LEVELS.length - 1;
     const detail = this.add
-      .text(0, -2, isLastLevel ? "Final prototype level restored. Undo is still available." : "Next level is ready. Undo is still available.", {
+      .text(0, -18, isLastLevel ? "All 12 shrine levels are restored." : "Shrine restored. Next level is ready.", {
         fontFamily: "Arial",
         fontSize: `${detailFontSize}px`,
         color: "#bfeadf",
@@ -992,11 +1141,25 @@ export default class SpiritSortScene extends Phaser.Scene {
         wordWrap: { width: panelWidth - 30, useAdvancedWrap: true }
       })
       .setOrigin(0.5);
+    const moveSummary = this.add
+      .text(0, 16, `Completed in ${this.moveCount} moves`, {
+        fontFamily: "Arial",
+        fontSize: `${detailFontSize}px`,
+        color: COLORS.text,
+        fontStyle: "bold"
+      })
+      .setOrigin(0.5);
     const restartButton = this.createWinButton(-Math.min(74, panelWidth * 0.19), buttonY, Math.min(124, panelWidth * 0.38), "Restart", () => this.restartLevel());
-    const nextButton = this.createWinButton(Math.min(78, panelWidth * 0.2), buttonY, Math.min(132, panelWidth * 0.4), "Next Level", () => this.goToLevel(this.currentLevelIndex + 1));
+    const nextButton = this.createWinButton(
+      Math.min(78, panelWidth * 0.2),
+      buttonY,
+      Math.min(132, panelWidth * 0.4),
+      isLastLevel ? "All Done" : "Next Level",
+      () => this.goToLevel(this.currentLevelIndex + 1)
+    );
     nextButton.setAlpha(isLastLevel ? 0.45 : 1);
 
-    this.winContainer.add([panel, title, detail, restartButton, nextButton]);
+    this.winContainer.add([panel, title, detail, moveSummary, restartButton, nextButton]);
     this.tweens.add({
       targets: this.winContainer,
       scale: {
@@ -1034,6 +1197,8 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   playSound(soundName) {
+    if (this.isMuted) return;
+
     const audioContext = this.sound?.context;
     const tones = SOUND_TONES[soundName];
 

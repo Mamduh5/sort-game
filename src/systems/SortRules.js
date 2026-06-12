@@ -52,6 +52,31 @@ export function undoMove(shelves, move) {
   return movingSpirit;
 }
 
+export function findHintMove(shelves, capacity = DEFAULT_SHELF_CAPACITY) {
+  const matchingMove = findFirstHintMove(shelves, capacity, false);
+  return matchingMove ?? findFirstHintMove(shelves, capacity, true);
+}
+
+function findFirstHintMove(shelves, capacity, allowEmptyTarget) {
+  for (let sourceIndex = 0; sourceIndex < shelves.length; sourceIndex += 1) {
+    const source = shelves[sourceIndex];
+
+    if (!source || source.length === 0 || isShelfComplete(source, capacity)) continue;
+
+    for (let targetIndex = 0; targetIndex < shelves.length; targetIndex += 1) {
+      const target = shelves[targetIndex];
+
+      if (!target) continue;
+      if (allowEmptyTarget !== (target.length === 0)) continue;
+      if (canMove(shelves, sourceIndex, targetIndex, capacity)) {
+        return { sourceIndex, targetIndex };
+      }
+    }
+  }
+
+  return null;
+}
+
 export function isShelfComplete(shelf, capacity = DEFAULT_SHELF_CAPACITY) {
   if (!shelf || shelf.length !== capacity) return false;
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { SPIRIT_SORT_LEVELS } from "../data/spiritSortLevels.js";
-import { applyMove, canMove, isShelfComplete, isSolved, undoMove } from "./SortRules.js";
+import { applyMove, canMove, findHintMove, isShelfComplete, isSolved, undoMove } from "./SortRules.js";
 
 const capacity = 4;
 
@@ -26,6 +26,13 @@ assert.deepEqual(undoShelves, [["leaf", "fire"], []], "undo returns moved spirit
 const invalidUndoShelves = [["leaf"], ["fire"]];
 assert.equal(undoMove(invalidUndoShelves, { sourceIndex: 0, targetIndex: 1, spirit: "moon" }), null);
 assert.deepEqual(invalidUndoShelves, [["leaf"], ["fire"]], "invalid undo does not mutate shelves");
+
+const hintShelves = [["leaf", "fire"], ["moon", "fire"], []];
+assert.deepEqual(findHintMove(hintShelves, capacity), { sourceIndex: 0, targetIndex: 1 }, "hint prefers matching target tops");
+assert.deepEqual(hintShelves, [["leaf", "fire"], ["moon", "fire"], []], "hint does not mutate shelves");
+
+assert.deepEqual(findHintMove([["leaf"], [], []], capacity), { sourceIndex: 0, targetIndex: 1 }, "hint falls back to empty targets");
+assert.equal(findHintMove([["fire", "fire", "fire", "fire"], []], capacity), null, "hint skips completed shelves");
 
 assert.equal(isShelfComplete(["moon", "moon", "moon", "moon"], capacity), true);
 assert.equal(isShelfComplete(["moon", "moon"], capacity), false);

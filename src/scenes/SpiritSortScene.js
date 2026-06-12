@@ -40,6 +40,15 @@ const SPIRIT_TYPES = {
   }
 };
 
+const ASSET_ROOT = "/assets/spirit-sort";
+const OPTIONAL_SPIRIT_ASSETS = {
+  fire: `${ASSET_ROOT}/spirits/spirit-fire.png`,
+  leaf: `${ASSET_ROOT}/spirits/spirit-leaf.png`,
+  moon: `${ASSET_ROOT}/spirits/spirit-moon.png`,
+  cloud: `${ASSET_ROOT}/spirits/spirit-cloud.png`,
+  star: `${ASSET_ROOT}/spirits/spirit-star.png`
+};
+
 const COLORS = {
   backgroundTop: 0x15162f,
   backgroundBottom: 0x262142,
@@ -100,6 +109,11 @@ export default class SpiritSortScene extends Phaser.Scene {
     super("SpiritSortScene");
   }
 
+  preload() {
+    this.optionalSpiritTextureKeys = new Set();
+    this.optionalSpiritAssetRequests = new Set();
+  }
+
   create() {
     this.currentLevelIndex = 0;
     this.selectedShelfIndex = null;
@@ -113,6 +127,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.boardLayout = null;
     this.hintEffects = [];
 
+    this.preloadOptionalSpiritAssets();
     this.createBackground();
     this.loadLevel(0);
     this.createHud();
@@ -145,6 +160,41 @@ export default class SpiritSortScene extends Phaser.Scene {
       this.winContainer.destroy(true);
       this.winContainer = null;
     }
+  }
+
+  preloadOptionalSpiritAssets() {
+    Object.entries(OPTIONAL_SPIRIT_ASSETS).forEach(([spiritType, path]) => {
+      const textureKey = this.getSpiritTextureKey(spiritType);
+
+      if (this.textures.exists(textureKey)) {
+        this.optionalSpiritTextureKeys.add(spiritType);
+        return;
+      }
+
+      if (this.optionalSpiritAssetRequests.has(textureKey)) return;
+      this.optionalSpiritAssetRequests.add(textureKey);
+
+      const image = new Image();
+      image.onload = () => {
+        if (!this.textures.exists(textureKey)) {
+          this.textures.addImage(textureKey, image);
+        }
+
+        this.optionalSpiritTextureKeys.add(spiritType);
+
+        if (!this.isAnimating && this.boardContainer) {
+          this.redrawBoard();
+        }
+      };
+      image.onerror = () => {
+        this.optionalSpiritAssetRequests.delete(textureKey);
+      };
+      image.src = path;
+    });
+  }
+
+  getSpiritTextureKey(spiritType) {
+    return `spirit-sort-${spiritType}`;
   }
 
   handleResize() {
@@ -725,6 +775,12 @@ export default class SpiritSortScene extends Phaser.Scene {
   createSpiritVisual(x, y, spiritType) {
     const layout = this.getCurrentLayout();
     const config = SPIRIT_TYPES[spiritType] ?? SPIRIT_TYPES.fire;
+    const textureKey = this.getSpiritTextureKey(spiritType);
+
+    if (this.optionalSpiritTextureKeys.has(spiritType) && this.textures.exists(textureKey)) {
+      return this.createSpiritImageVisual(x, y, textureKey, config, layout);
+    }
+
     const container = this.add.container(x, y);
     const spiritScale = layout.spiritSize / BASE_LAYOUT.spiritSize;
 
@@ -745,6 +801,17 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     container.add([glow, shadow, ...bodyParts, eyeLeft, eyeRight, label]);
     container.setScale(spiritScale);
+    return container;
+  }
+
+  createSpiritImageVisual(x, y, textureKey, config, layout) {
+    const container = this.add.container(x, y);
+    const glow = this.add.circle(0, 0, layout.spiritSize / 2 + 8, config.glow, 0.22);
+    const shadow = this.add.ellipse(0, layout.spiritSize * 0.42, layout.spiritSize * 0.76, 10, 0x0c0b18, 0.18);
+    const image = this.add.image(0, 0, textureKey);
+    image.setDisplaySize(layout.spiritSize * 1.18, layout.spiritSize * 1.18);
+
+    container.add([glow, shadow, image]);
     return container;
   }
 

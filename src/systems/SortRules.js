@@ -18,13 +18,13 @@ export function canMove(shelves, sourceIndex, targetIndex, capacity = DEFAULT_SH
   return movingSpirit === targetTopSpirit;
 }
 
-export function applyMove(shelves, sourceIndex, targetIndex) {
-  const source = shelves[sourceIndex];
-  const target = shelves[targetIndex];
-
-  if (!source || !target || source.length === 0) {
+export function applyMove(shelves, sourceIndex, targetIndex, capacity = DEFAULT_SHELF_CAPACITY) {
+  if (!canMove(shelves, sourceIndex, targetIndex, capacity)) {
     return null;
   }
+
+  const source = shelves[sourceIndex];
+  const target = shelves[targetIndex];
 
   const movingSpirit = source.pop();
   target.push(movingSpirit);

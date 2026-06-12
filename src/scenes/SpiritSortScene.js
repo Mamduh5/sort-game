@@ -59,7 +59,8 @@ const LAYOUT = {
   shelfGap: 28,
   spiritSize: 52,
   slotGap: 58,
-  boardTop: 230
+  boardTop: 230,
+  selectedTopLift: 12
 };
 
 export default class SpiritSortScene extends Phaser.Scene {
@@ -247,7 +248,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     const complete = isShelfComplete(shelf, this.capacity);
 
     const glowColor = selected ? COLORS.selected : COLORS.complete;
-    const glowAlpha = selected ? 0.34 : complete ? 0.22 : 0;
+    const glowAlpha = selected ? 0.46 : complete ? 0.26 : 0;
     const glow = this.add.rectangle(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth + 28, LAYOUT.shelfHeight + 34, glowColor, glowAlpha);
     glow.setStrokeStyle(selected ? 4 : 2, glowColor, selected || complete ? 0.85 : 0);
 
@@ -266,15 +267,37 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     container.add([glow, back, leftPost, rightPost, base, top]);
 
+    if (selected) {
+      const selectorHalo = this.add.circle(0, -32, 18, COLORS.selected, 0.3);
+      const selectorArrow = this.add.triangle(0, -29, 0, 11, -11, -8, 11, -8, COLORS.selected, 0.92);
+      container.add([selectorHalo, selectorArrow]);
+    }
+
     shelf.forEach((spiritType, stackIndex) => {
       if (this.shouldHideSpirit(index, stackIndex)) return;
 
       const local = this.getSpiritLocalPosition(stackIndex);
-      const spirit = this.createSpiritVisual(local.x, local.y, spiritType);
+      const isSelectedTop = selected && stackIndex === shelf.length - 1;
+      const spirit = this.createSpiritVisual(
+        local.x,
+        local.y - (isSelectedTop ? LAYOUT.selectedTopLift : 0),
+        spiritType
+      );
+
+      if (isSelectedTop) {
+        spirit.setScale(1.06);
+      }
+
       container.add(spirit);
     });
 
     if (complete) {
+      for (let i = 0; i < 4; i += 1) {
+        const sparkleX = -36 + i * 24;
+        const sparkleY = 20 + (i % 2) * 18;
+        container.add(this.add.circle(sparkleX, sparkleY, 3, COLORS.complete, 0.58));
+      }
+
       const restoredText = this.add
         .text(0, LAYOUT.shelfHeight + 27, "restored", {
           fontFamily: "Arial",
@@ -360,7 +383,9 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.isAnimating = true;
     this.selectedShelfIndex = null;
 
-    applyMove(this.shelves, sourceIndex, targetIndex);
+    const targetWasComplete = isShelfComplete(this.shelves[targetIndex], this.capacity);
+
+    applyMove(this.shelves, sourceIndex, targetIndex, this.capacity);
     this.hiddenSpirit = {
       shelfIndex: targetIndex,
       stackIndex: this.shelves[targetIndex].length - 1
@@ -392,7 +417,10 @@ export default class SpiritSortScene extends Phaser.Scene {
             movingVisual.destroy();
             this.hiddenSpirit = null;
             this.redrawBoard();
-            this.playLandingFeedback(targetIndex);
+            this.playLandingFeedback(
+              targetIndex,
+              !targetWasComplete && isShelfComplete(this.shelves[targetIndex], this.capacity)
+            );
             this.isAnimating = false;
             this.checkWin();
           }
@@ -431,7 +459,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     });
   }
 
-  playLandingFeedback(shelfIndex) {
+  playLandingFeedback(shelfIndex, completedNow = false) {
     const view = this.shelfViews[shelfIndex];
     if (!view) return;
 
@@ -444,7 +472,20 @@ export default class SpiritSortScene extends Phaser.Scene {
       ease: "Sine.easeOut"
     });
 
-    this.createSparkles(view.position.x, view.position.y + 58);
+    this.createSparkles(view.position.x, view.position.y + 58, completedNow ? 12 : 6);
+
+    if (completedNow) {
+      this.tweens.add({
+        targets: view.container,
+        alpha: {
+          from: 0.84,
+          to: 1
+        },
+        duration: 130,
+        yoyo: true,
+        ease: "Sine.easeOut"
+      });
+    }
   }
 
   playInvalidMoveFeedback(shelfIndex) {
@@ -452,17 +493,15 @@ export default class SpiritSortScene extends Phaser.Scene {
     if (!view) return;
 
     const flash = this.add
-      .rectangle(view.position.x, view.position.y + LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth + 30, LAYOUT.shelfHeight + 36, COLORS.invalid, 0.22)
+      .rectangle(view.position.x, view.position.y + LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth + 34, LAYOUT.shelfHeight + 40, COLORS.invalid, 0.34)
       .setDepth(35);
+    flash.setStrokeStyle(3, COLORS.invalid, 0.85);
 
     this.tweens.add({
       targets: view.container,
-      x: {
-        from: view.position.x - 10,
-        to: view.position.x + 10
-      },
-      duration: 45,
-      repeat: 3,
+      x: view.position.x + 12,
+      duration: 42,
+      repeat: 4,
       yoyo: true,
       ease: "Sine.easeInOut",
       onComplete: () => {
@@ -478,10 +517,10 @@ export default class SpiritSortScene extends Phaser.Scene {
     });
   }
 
-  createSparkles(x, y) {
-    for (let i = 0; i < 7; i += 1) {
+  createSparkles(x, y, count = 7) {
+    for (let i = 0; i < count; i += 1) {
       const sparkle = this.add.circle(x, y, 3, 0xfff0b6, 0.9).setDepth(36);
-      const angle = (Math.PI * 2 * i) / 7;
+      const angle = (Math.PI * 2 * i) / count;
       const distance = 28 + (i % 2) * 18;
 
       this.tweens.add({

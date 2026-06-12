@@ -1,14 +1,19 @@
-# Spirit Shelf Sort Docs Pack
+# Spirit Shelf Sort
 
-Copy these files/folders into your project root.
+Small Phaser prototype for a cozy shrine-themed stack sorting puzzle.
 
-Recommended placement:
+## Run
 
-```txt
-project-root/
-  AGENTS.md
-  agent.md
-  docs/
+```sh
+npm install
+npm run dev
 ```
 
-`AGENTS.md` is the canonical Codex instruction file. `agent.md` is included as a lowercase convenience copy.
+Then open the local Vite URL printed in the terminal.
+
+## Validate
+
+```sh
+npm test
+npm run build
+```

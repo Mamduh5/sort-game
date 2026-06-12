@@ -396,7 +396,7 @@ export default class SpiritSortScene extends Phaser.Scene {
 
   updateHud() {
     this.levelText.setText(
-      `Level ${this.currentLevel.id} of ${SPIRIT_SORT_LEVELS.length}: ${this.currentLevel.name}`
+      `Level ${this.currentLevelIndex + 1} / ${SPIRIT_SORT_LEVELS.length}: ${this.currentLevel.name}`
     );
 
     this.previousButton.setAlpha(this.currentLevelIndex === 0 ? 0.45 : 1);

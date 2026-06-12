@@ -43,8 +43,12 @@ const SPIRIT_TYPES = {
 const COLORS = {
   backgroundTop: 0x15162f,
   backgroundBottom: 0x262142,
+  backgroundMid: 0x1d1a38,
+  shrineShadow: 0x101225,
   shelfWood: 0x76513c,
+  shelfWoodDark: 0x4d3028,
   shelfWoodLight: 0xa87956,
+  shelfGold: 0xd7aa68,
   shelfInside: 0x2d243b,
   selected: 0xf7d783,
   complete: 0x9df0d2,
@@ -144,23 +148,88 @@ export default class SpiritSortScene extends Phaser.Scene {
     );
     sky.fillRect(0, 0, width, height);
 
+    sky.fillGradientStyle(
+      0x000000,
+      0x000000,
+      COLORS.backgroundMid,
+      COLORS.backgroundMid,
+      0,
+      0,
+      0.28,
+      0.28
+    );
+    sky.fillRect(0, height * 0.52, width, height * 0.48);
+
+    this.createMoonGlow();
+    this.createDistantShrine();
+
+    const mist = this.add.graphics();
+    mist.fillStyle(0x8b78a8, 0.08);
+    mist.fillEllipse(width / 2, height - 98, width * 0.9, 72);
+    mist.fillStyle(0xf7d783, 0.06);
+    mist.fillEllipse(width / 2, height - 136, width * 0.62, 44);
+
+    this.createFireflies();
+  }
+
+  createMoonGlow() {
+    this.add.circle(812, 92, 92, 0xf6e8b7, 0.07);
+    this.add.circle(812, 92, 62, 0xf6e8b7, 0.12);
     this.add.circle(812, 92, 42, 0xf6e8b7, 0.88);
     this.add.circle(794, 84, 42, COLORS.backgroundTop, 1);
 
-    const hills = this.add.graphics();
-    hills.fillStyle(0x0f1427, 0.86);
-    hills.fillTriangle(0, height, 170, 438, 360, height);
-    hills.fillTriangle(210, height, 472, 414, 720, height);
-    hills.fillTriangle(580, height, 798, 432, width, height);
+    for (let i = 0; i < 22; i += 1) {
+      const x = 42 + ((i * 83) % 860);
+      const y = 52 + ((i * 47) % 190);
+      const alpha = 0.16 + (i % 4) * 0.05;
+      this.add.circle(x, y, 1 + (i % 3), 0xffe9a8, alpha);
+    }
+  }
 
-    for (let i = 0; i < 18; i += 1) {
-      const x = 56 + i * 51;
-      const y = 96 + ((i * 37) % 90);
-      this.add.circle(x, y, 2 + (i % 3), 0xffe9a8, 0.28);
+  createDistantShrine() {
+    const { width, height } = this.scale;
+    const scenery = this.add.graphics();
+
+    scenery.fillStyle(0x0f1427, 0.86);
+    scenery.fillTriangle(0, height, 170, 438, 360, height);
+    scenery.fillTriangle(210, height, 472, 414, 720, height);
+    scenery.fillTriangle(580, height, 798, 432, width, height);
+
+    scenery.fillStyle(COLORS.shrineShadow, 0.9);
+    scenery.fillRect(448, 346, 16, 134);
+    scenery.fillRect(604, 346, 16, 134);
+    scenery.fillRect(414, 330, 240, 18);
+    scenery.fillRect(438, 308, 192, 14);
+    scenery.fillTriangle(398, 330, 534, 272, 670, 330);
+    scenery.fillRect(482, 356, 106, 90);
+    scenery.fillTriangle(454, 356, 535, 314, 618, 356);
+    scenery.fillStyle(0xf7d783, 0.18);
+    scenery.fillRect(520, 370, 28, 52);
+  }
+
+  createFireflies() {
+    for (let i = 0; i < 16; i += 1) {
+      const x = 60 + ((i * 61) % 845);
+      const y = 182 + ((i * 41) % 280);
+      const dot = this.add.circle(x, y, 2 + (i % 2), 0xffe8a0, 0.28);
+
+      this.tweens.add({
+        targets: dot,
+        alpha: 0.08,
+        duration: 1200 + i * 80,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
     }
   }
 
   createHud() {
+    const hudBand = this.add
+      .rectangle(this.scale.width / 2, 56, this.scale.width, 112, 0x17142d, 0.46)
+      .setDepth(18);
+    hudBand.setStrokeStyle(1, 0xd7aa68, 0.16);
+
     this.titleText = this.add
       .text(48, 34, "Spirit Shelf Sort", {
         fontFamily: "Arial",
@@ -169,6 +238,7 @@ export default class SpiritSortScene extends Phaser.Scene {
         fontStyle: "bold"
       })
       .setDepth(20);
+    this.titleText.setShadow(0, 2, "#050511", 4);
 
     this.levelText = this.add
       .text(50, 77, "", {
@@ -177,6 +247,7 @@ export default class SpiritSortScene extends Phaser.Scene {
         color: COLORS.mutedText
       })
       .setDepth(20);
+    this.levelText.setShadow(0, 1, "#050511", 3);
 
     this.previousButton = this.createButton(558, 42, 74, "Prev", () => this.goToLevel(this.currentLevelIndex - 1));
     this.restartButton = this.createButton(660, 42, 104, "Restart", () => this.restartLevel());
@@ -189,8 +260,11 @@ export default class SpiritSortScene extends Phaser.Scene {
   createButton(x, y, width, label, onClick) {
     const container = this.add.container(x, y).setDepth(25);
     const background = this.add
-      .rectangle(0, 0, width, 38, 0x342b4d, 0.94)
-      .setStrokeStyle(2, 0xc2a86e, 0.72);
+      .rectangle(0, 0, width, 38, 0x342538, 0.96)
+      .setStrokeStyle(2, COLORS.shelfGold, 0.78);
+    const shine = this.add.rectangle(0, -13, width - 12, 4, 0xffe2a5, 0.18);
+    const leftCap = this.add.rectangle(-width / 2 + 7, 0, 5, 26, COLORS.shelfWoodLight, 0.7);
+    const rightCap = this.add.rectangle(width / 2 - 7, 0, 5, 26, COLORS.shelfWoodLight, 0.7);
     const text = this.add
       .text(0, 0, label, {
         fontFamily: "Arial",
@@ -200,14 +274,14 @@ export default class SpiritSortScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    container.add([background, text]);
+    container.add([background, shine, leftCap, rightCap, text]);
     container.buttonBackground = background;
     container.buttonText = text;
     container.setSize(width, 38);
     container.setInteractive({ useHandCursor: true });
     container.on("pointerdown", onClick);
     container.on("pointerover", () => background.setFillStyle(0x4b3b68, 0.98));
-    container.on("pointerout", () => background.setFillStyle(0x342b4d, 0.94));
+    container.on("pointerout", () => background.setFillStyle(0x342538, 0.96));
 
     return container;
   }
@@ -313,20 +387,50 @@ export default class SpiritSortScene extends Phaser.Scene {
     const glow = this.add.rectangle(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth + 28, LAYOUT.shelfHeight + 34, glowColor, glowAlpha);
     glow.setStrokeStyle(selected ? 4 : 2, glowColor, selected || complete ? 0.85 : 0);
 
+    const roof = this.add
+      .polygon(0, -20, [-76, 18, 76, 18, 56, -10, -56, -10], COLORS.shelfWoodDark, 1)
+      .setStrokeStyle(2, COLORS.shelfGold, 0.7);
+    const roofTrim = this.add.rectangle(0, -2, LAYOUT.shelfWidth + 34, 10, COLORS.shelfWoodLight, 1);
     const back = this.add
-      .rectangle(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth, LAYOUT.shelfHeight, COLORS.shelfInside, 0.84)
+      .rectangle(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth, LAYOUT.shelfHeight, COLORS.shelfInside, 0.86)
       .setStrokeStyle(4, COLORS.shelfWoodLight, 0.92);
+    const innerGlow = this.add.rectangle(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth - 24, LAYOUT.shelfHeight - 28, 0xf7d783, 0.05);
 
     const leftPost = this.add.rectangle(-LAYOUT.shelfWidth / 2 + 9, LAYOUT.shelfHeight / 2, 14, LAYOUT.shelfHeight + 18, COLORS.shelfWood, 1);
     const rightPost = this.add.rectangle(LAYOUT.shelfWidth / 2 - 9, LAYOUT.shelfHeight / 2, 14, LAYOUT.shelfHeight + 18, COLORS.shelfWood, 1);
-    const base = this.add.rectangle(0, LAYOUT.shelfHeight + 5, LAYOUT.shelfWidth + 26, 20, COLORS.shelfWoodLight, 1);
-    const top = this.add.rectangle(0, -5, LAYOUT.shelfWidth + 18, 16, COLORS.shelfWoodLight, 1);
+    const baseShadow = this.add.rectangle(0, LAYOUT.shelfHeight + 13, LAYOUT.shelfWidth + 34, 10, COLORS.shelfWoodDark, 1);
+    const base = this.add.rectangle(0, LAYOUT.shelfHeight + 5, LAYOUT.shelfWidth + 30, 20, COLORS.shelfWoodLight, 1);
+    const top = this.add.rectangle(0, 11, LAYOUT.shelfWidth + 10, 8, COLORS.shelfWoodLight, 0.95);
+
+    const planks = [];
+    for (let i = 1; i < this.capacity; i += 1) {
+      planks.push(this.add.rectangle(0, LAYOUT.shelfHeight - 62 - i * LAYOUT.slotGap, LAYOUT.shelfWidth - 26, 3, COLORS.shelfWoodLight, 0.24));
+    }
+
+    const charm = this.add.circle(0, LAYOUT.shelfHeight + 5, 5, COLORS.shelfGold, 0.8);
+    const leftKnot = this.add.circle(-LAYOUT.shelfWidth / 2 + 9, 46, 3, COLORS.shelfWoodDark, 0.7);
+    const rightKnot = this.add.circle(LAYOUT.shelfWidth / 2 - 9, 116, 3, COLORS.shelfWoodDark, 0.7);
 
     const zone = this.add.zone(0, LAYOUT.shelfHeight / 2, LAYOUT.shelfWidth + 26, LAYOUT.shelfHeight + 36);
     zone.setInteractive({ useHandCursor: true });
     zone.on("pointerdown", () => this.handleShelfTap(index));
 
-    container.add([glow, back, leftPost, rightPost, base, top]);
+    container.add([
+      glow,
+      roof,
+      roofTrim,
+      back,
+      innerGlow,
+      ...planks,
+      leftPost,
+      rightPost,
+      baseShadow,
+      base,
+      top,
+      charm,
+      leftKnot,
+      rightKnot
+    ]);
 
     if (selected) {
       const selectorHalo = this.add.circle(0, -32, 18, COLORS.selected, 0.3);
@@ -387,9 +491,9 @@ export default class SpiritSortScene extends Phaser.Scene {
     const config = SPIRIT_TYPES[spiritType] ?? SPIRIT_TYPES.fire;
     const container = this.add.container(x, y);
 
-    const glow = this.add.circle(0, 0, LAYOUT.spiritSize / 2 + 8, config.glow, 0.2);
-    const body = this.add.circle(0, 0, LAYOUT.spiritSize / 2, config.color, 1);
-    body.setStrokeStyle(3, 0xffffff, 0.55);
+    const glow = this.add.circle(0, 0, LAYOUT.spiritSize / 2 + 10, config.glow, 0.2);
+    const shadow = this.add.ellipse(0, 22, 40, 10, 0x0c0b18, 0.18);
+    const bodyParts = this.createSpiritBodyParts(spiritType, config);
 
     const eyeLeft = this.add.circle(-10, -7, 3, 0x1d1b2d, 1);
     const eyeRight = this.add.circle(10, -7, 3, 0x1d1b2d, 1);
@@ -402,8 +506,52 @@ export default class SpiritSortScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    container.add([glow, body, eyeLeft, eyeRight, label]);
+    container.add([glow, shadow, ...bodyParts, eyeLeft, eyeRight, label]);
     return container;
+  }
+
+  createSpiritBodyParts(spiritType, config) {
+    const outlineColor = 0xffffff;
+
+    if (spiritType === "fire") {
+      const flameTip = this.add.triangle(0, -22, 0, -28, -16, 10, 16, 10, config.color, 1);
+      const body = this.add.ellipse(0, 4, 46, 44, config.color, 1).setStrokeStyle(3, outlineColor, 0.52);
+      const innerFlame = this.add.triangle(0, -8, 0, -18, -7, 8, 7, 8, 0xffd18a, 0.82);
+      return [flameTip, body, innerFlame];
+    }
+
+    if (spiritType === "leaf") {
+      const body = this.add.ellipse(0, 4, 46, 44, config.color, 1).setStrokeStyle(3, outlineColor, 0.52);
+      const stem = this.add.rectangle(0, -25, 5, 16, 0x2e7d45, 1);
+      const leafLeft = this.add.ellipse(-8, -29, 18, 10, 0xa7ee9a, 1).setAngle(-28);
+      const leafRight = this.add.ellipse(9, -29, 18, 10, 0xa7ee9a, 1).setAngle(28);
+      return [stem, leafLeft, leafRight, body];
+    }
+
+    if (spiritType === "moon") {
+      const body = this.add.ellipse(0, 4, 46, 44, config.color, 1).setStrokeStyle(3, outlineColor, 0.52);
+      const crescent = this.add.circle(-11, -17, 8, 0xfff1b8, 0.88);
+      const crescentCut = this.add.circle(-7, -19, 8, config.color, 1);
+      return [body, crescent, crescentCut];
+    }
+
+    if (spiritType === "cloud") {
+      const lower = this.add.ellipse(0, 9, 48, 30, config.color, 1).setStrokeStyle(3, outlineColor, 0.5);
+      const puffLeft = this.add.circle(-16, -2, 17, config.color, 1).setStrokeStyle(2, outlineColor, 0.38);
+      const puffTop = this.add.circle(1, -11, 19, config.color, 1).setStrokeStyle(2, outlineColor, 0.38);
+      const puffRight = this.add.circle(17, 0, 16, config.color, 1).setStrokeStyle(2, outlineColor, 0.38);
+      return [lower, puffLeft, puffTop, puffRight];
+    }
+
+    if (spiritType === "star") {
+      const starAura = this.add.star(0, 3, 5, 20, 29, 0xffee9a, 0.5);
+      const body = this.add.ellipse(0, 5, 42, 40, config.color, 1).setStrokeStyle(3, outlineColor, 0.52);
+      const sparkleTop = this.add.star(18, -20, 4, 3, 7, 0xffffff, 0.82);
+      const sparkleSide = this.add.star(-20, -7, 4, 2, 5, 0xffffff, 0.7);
+      return [starAura, body, sparkleTop, sparkleSide];
+    }
+
+    return [this.add.ellipse(0, 4, 46, 44, config.color, 1).setStrokeStyle(3, outlineColor, 0.52)];
   }
 
   handleShelfTap(targetIndex) {
@@ -679,8 +827,9 @@ export default class SpiritSortScene extends Phaser.Scene {
   createWinButton(x, y, width, label, onClick) {
     const container = this.add.container(x, y);
     const background = this.add
-      .rectangle(0, 0, width, 34, 0x3a3157, 0.96)
-      .setStrokeStyle(2, 0xc2a86e, 0.72);
+      .rectangle(0, 0, width, 34, 0x342538, 0.96)
+      .setStrokeStyle(2, COLORS.shelfGold, 0.72);
+    const shine = this.add.rectangle(0, -11, width - 12, 4, 0xffe2a5, 0.16);
     const text = this.add
       .text(0, 0, label, {
         fontFamily: "Arial",
@@ -690,12 +839,12 @@ export default class SpiritSortScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    container.add([background, text]);
+    container.add([background, shine, text]);
     container.setSize(width, 34);
     container.setInteractive({ useHandCursor: true });
     container.on("pointerdown", onClick);
     container.on("pointerover", () => background.setFillStyle(0x4b3b68, 0.98));
-    container.on("pointerout", () => background.setFillStyle(0x3a3157, 0.96));
+    container.on("pointerout", () => background.setFillStyle(0x342538, 0.96));
 
     return container;
   }

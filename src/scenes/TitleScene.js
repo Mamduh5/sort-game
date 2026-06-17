@@ -331,7 +331,7 @@ export default class TitleScene extends Phaser.Scene {
 
   createFooter(width, height, layout) {
     const footer = this.add
-      .text(width / 2, layout.footerY, "MVP", {
+      .text(width / 2, layout.footerY, "Mamduh", {
         fontFamily: "Arial",
         fontSize: `${layout.isMobile ? 11 : 12}px`,
         color: "#a99dc8",

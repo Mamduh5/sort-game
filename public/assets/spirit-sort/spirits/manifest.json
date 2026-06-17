@@ -1,3 +1,9 @@
 {
-  "spirits": {}
+  "spirits": {
+    "fire": "spirit-fire.png",
+    "leaf": "spirit-leaf.png",
+    "cloud": "spirit-cloud.png",
+    "moon": "spirit-moon.png",
+    "star": "spirit-star.png"
+  }
 }

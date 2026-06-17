@@ -1,0 +1,23 @@
+{
+  "name": "Spirit Shelf Sort",
+  "short_name": "Spirit Sort",
+  "description": "A cozy magical sorting puzzle game where tiny spirits return to their shrine shelves.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#17142d",
+  "theme_color": "#17142d",
+  "icons": [
+    {
+      "src": "app-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

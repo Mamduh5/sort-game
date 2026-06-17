@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Spirit Shelf Sort app icon">
+  <rect width="512" height="512" rx="96" fill="#17142d"/>
+  <circle cx="364" cy="130" r="88" fill="#f6e8b7" opacity="0.18"/>
+  <circle cx="364" cy="130" r="58" fill="#f6e8b7" opacity="0.92"/>
+  <circle cx="338" cy="112" r="62" fill="#17142d"/>
+  <path d="M58 444 145 272l98 172H58Zm214 0 100-196 96 196H272Z" fill="#0f1427" opacity="0.82"/>
+  <rect x="102" y="348" width="308" height="52" rx="10" fill="#a87956"/>
+  <rect x="132" y="214" width="44" height="154" rx="10" fill="#76513c"/>
+  <rect x="336" y="214" width="44" height="154" rx="10" fill="#76513c"/>
+  <path d="M104 220h304l-42-52H146l-42 52Z" fill="#4d3028" stroke="#d7aa68" stroke-width="10" stroke-linejoin="round"/>
+  <circle cx="256" cy="286" r="108" fill="#ffb36f" opacity="0.18"/>
+  <circle cx="256" cy="286" r="82" fill="#ffb36f" opacity="0.2"/>
+  <path d="M256 138c58 58 96 102 96 166 0 58-40 100-96 100s-96-42-96-100c0-64 38-108 96-166Z" fill="#ff7a3d"/>
+  <path d="M256 212c31 34 49 59 49 94 0 35-20 58-49 58s-49-23-49-58c0-35 18-60 49-94Z" fill="#ffd45c"/>
+  <circle cx="220" cy="304" r="16" fill="#1d1b2d"/>
+  <circle cx="292" cy="304" r="16" fill="#1d1b2d"/>
+  <path d="M232 350c17 13 31 13 48 0" fill="none" stroke="#1d1b2d" stroke-width="16" stroke-linecap="round"/>
+</svg>

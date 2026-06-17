@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Spirit Shelf Sort icon">
+  <rect width="64" height="64" rx="14" fill="#17142d"/>
+  <circle cx="44" cy="18" r="14" fill="#f6e8b7" opacity="0.9"/>
+  <circle cx="38" cy="15" r="14" fill="#17142d"/>
+  <rect x="13" y="43" width="38" height="7" rx="2" fill="#a87956"/>
+  <rect x="17" y="28" width="6" height="18" rx="2" fill="#76513c"/>
+  <rect x="41" y="28" width="6" height="18" rx="2" fill="#76513c"/>
+  <circle cx="32" cy="34" r="13" fill="#ffb36f" opacity="0.28"/>
+  <path d="M32 18c7 7 12 12 12 20 0 7-5 12-12 12s-12-5-12-12c0-8 5-13 12-20Z" fill="#ff7a3d"/>
+  <path d="M32 27c4 4 6 7 6 11 0 4-3 7-6 7s-6-3-6-7c0-4 2-7 6-11Z" fill="#ffd45c"/>
+  <circle cx="27" cy="37" r="2.2" fill="#1d1b2d"/>
+  <circle cx="37" cy="37" r="2.2" fill="#1d1b2d"/>
+  <path d="M29 43c2 1.4 4 1.4 6 0" fill="none" stroke="#1d1b2d" stroke-width="2" stroke-linecap="round"/>
+</svg>

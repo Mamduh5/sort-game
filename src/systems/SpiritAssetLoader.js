@@ -1,4 +1,4 @@
-const ASSET_ROOT = "/assets/spirit-sort";
+const ASSET_ROOT = `${import.meta.env.BASE_URL}assets/spirit-sort`;
 export const SPIRIT_ASSET_ROOT = `${ASSET_ROOT}/spirits`;
 export const SPIRIT_MANIFEST_PATH = `${SPIRIT_ASSET_ROOT}/manifest.json`;
 

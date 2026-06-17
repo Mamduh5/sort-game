@@ -100,11 +100,11 @@ const BASE_LAYOUT = {
 };
 
 const SPIRIT_VISUALS = {
-  imageFitRatio: 1.14,
-  rimScale: 1.08,
+  imageFitRatio: 1.08,
+  rimScale: 1.06,
   selectedScale: 1.06,
-  idleFloat: 1.6,
-  selectedIdleFloat: 3
+  idleFloat: 1.2,
+  selectedIdleFloat: 2.4
 };
 
 export default class SpiritSortScene extends Phaser.Scene {
@@ -626,7 +626,10 @@ export default class SpiritSortScene extends Phaser.Scene {
     const rowGap = rows > 1 ? Phaser.Math.Clamp(height * 0.035, 18, 34) : 0;
     const hudHeight = this.getHudLayout().bandHeight;
     const availableWidth = Math.max(280, width - margin * 2);
-    const boardTop = hudHeight + Phaser.Math.Clamp(height * 0.035, 16, 38);
+    const topClearance = isNarrow
+      ? Phaser.Math.Clamp(height * 0.07, 34, 54)
+      : Phaser.Math.Clamp(height * 0.035, 16, 38);
+    const boardTop = hudHeight + topClearance;
     const availableHeight = Math.max(220, height - boardTop - 40);
     const shelfWidth = Phaser.Math.Clamp(
       (availableWidth - gap * (columns - 1)) / columns,
@@ -854,13 +857,13 @@ export default class SpiritSortScene extends Phaser.Scene {
     rimGlow
       .setScale(fitScale * SPIRIT_VISUALS.rimScale)
       .setTint(config.glow)
-      .setAlpha(0.24)
+      .setAlpha(0.18)
       .setBlendMode(Phaser.BlendModes.ADD);
     image.setScale(fitScale);
     warmOverlay
       .setScale(fitScale)
       .setTint(0xffe2a5)
-      .setAlpha(0.14)
+      .setAlpha(0.1)
       .setBlendMode(Phaser.BlendModes.ADD);
 
     container.add([...glowParts, rimGlow, image, warmOverlay, warmLight]);
@@ -868,10 +871,10 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   createSpiritGlowParts(config, size) {
-    const outerGlow = this.add.circle(0, -size * 0.03, size * 0.68, config.glow, 0.18);
-    const innerGlow = this.add.circle(0, -size * 0.04, size * 0.5, config.color, 0.1);
-    const groundGlow = this.add.ellipse(0, size * 0.43, size * 0.82, size * 0.2, config.glow, 0.12);
-    const shadow = this.add.ellipse(0, size * 0.47, size * 0.78, size * 0.17, 0x0c0b18, 0.2);
+    const outerGlow = this.add.circle(0, -size * 0.03, size * 0.64, config.glow, 0.14);
+    const innerGlow = this.add.circle(0, -size * 0.04, size * 0.48, config.color, 0.08);
+    const groundGlow = this.add.ellipse(0, size * 0.43, size * 0.78, size * 0.18, config.glow, 0.1);
+    const shadow = this.add.ellipse(0, size * 0.47, size * 0.76, size * 0.16, 0x0c0b18, 0.2);
 
     return [outerGlow, innerGlow, groundGlow, shadow];
   }
@@ -887,7 +890,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     const baseScaleX = spirit.scaleX;
     const baseScaleY = spirit.scaleY;
     const floatAmount = isSelectedTop ? SPIRIT_VISUALS.selectedIdleFloat : SPIRIT_VISUALS.idleFloat;
-    const scalePulse = isSelectedTop ? 1.035 : 1.018;
+    const scalePulse = isSelectedTop ? 1.025 : 1.012;
     const duration = 1500 + ((shelfIndex * 97 + stackIndex * 53) % 360);
 
     this.tweens.add({
@@ -1132,9 +1135,9 @@ export default class SpiritSortScene extends Phaser.Scene {
       this.tweens.add({
         targets: landedSpirit,
         y: baseY + 2,
-        scaleX: baseScaleX * 1.12,
-        scaleY: baseScaleY * 0.9,
-        duration: 82,
+        scaleX: baseScaleX * 1.08,
+        scaleY: baseScaleY * 0.94,
+        duration: 90,
         yoyo: true,
         ease: "Sine.easeOut",
         onComplete: () => {
@@ -1149,9 +1152,9 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: view.container,
-      scaleX: 1.03,
-      scaleY: 1.03,
-      duration: 90,
+      scaleX: 1.018,
+      scaleY: 1.018,
+      duration: 96,
       yoyo: true,
       ease: "Sine.easeOut"
     });

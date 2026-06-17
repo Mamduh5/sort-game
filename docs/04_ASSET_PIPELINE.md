@@ -39,6 +39,7 @@ Final export expectations:
 - export one transparent PNG per spirit
 - keep the spirit centered on the canvas
 - use similar body scale and padding across all spirits
+- aim for the main spirit body to occupy about 70-85% of the canvas height
 - `128x128` is the recommended runtime export size
 - keep PSD, layered, or high-resolution source files outside the runtime asset path
 

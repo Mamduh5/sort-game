@@ -96,7 +96,9 @@ Recommended format:
 
 ## Runtime Fallback Behavior
 
-The scene loads the spirit manifest first, then loads only the PNG files listed there. If a spirit type is not listed, the scene keeps using the current code-drawn placeholder spirit. If the manifest fails to load, all spirits use placeholders. Missing optional assets should not break gameplay.
+The boot scene loads the spirit manifest before the title screen or puzzle board renders, then preloads only the PNG files listed there. If a spirit type is not listed, the game keeps using the current code-drawn placeholder spirit. If the manifest fails to load, is empty, or lists an image that cannot be loaded, affected spirits use placeholders. Missing optional assets should not block the title screen or gameplay.
+
+Runtime asset URLs are resolved from the app base path, so the same manifest and PNG paths work locally and under the GitHub Pages `/sort-game/` deployment path.
 
 ## GPT Image Prompts
 

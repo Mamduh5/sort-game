@@ -9,7 +9,7 @@ import {
   markLevelStarted,
   setMuted
 } from "../systems/ProgressSave.js";
-import { loadSpiritTextureManifest } from "../systems/SpiritAssetLoader.js";
+import { getSpiritTextureKey } from "../systems/SpiritAssetLoader.js";
 import { applyMove, canMove, findHintMove, isShelfComplete, isSolved, undoMove } from "../systems/SortRules.js";
 
 const SPIRIT_TYPES = {
@@ -140,11 +140,6 @@ export default class SpiritSortScene extends Phaser.Scene {
     super("SpiritSortScene");
   }
 
-  preload() {
-    this.optionalSpiritTextureKeys = new Set();
-    this.optionalSpiritAssetRequests = new Set();
-  }
-
   create(data = {}) {
     this.isSceneAlive = true;
     this.progress = loadProgress(SPIRIT_SORT_LEVELS);
@@ -165,7 +160,6 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.hintEffects = [];
     this.boardTweenTargets = [];
 
-    this.loadOptionalSpiritAssetsFromManifest();
     this.createBackground();
     this.loadLevel(this.currentLevelIndex);
     this.createHud();
@@ -210,22 +204,8 @@ export default class SpiritSortScene extends Phaser.Scene {
     return levelIndex >= 0 ? levelIndex : 0;
   }
 
-  async loadOptionalSpiritAssetsFromManifest() {
-    await loadSpiritTextureManifest(this, {
-      spiritTypes: SPIRIT_TYPES,
-      getTextureKey: (spiritType) => this.getSpiritTextureKey(spiritType),
-      loadedTypes: this.optionalSpiritTextureKeys,
-      requestedKeys: this.optionalSpiritAssetRequests,
-      onLoaded: () => {
-        if (!this.isAnimating && this.boardContainer) {
-          this.redrawBoard();
-        }
-      }
-    });
-  }
-
   getSpiritTextureKey(spiritType) {
-    return `spirit-sort-${spiritType}`;
+    return getSpiritTextureKey(spiritType);
   }
 
   handleResize() {
@@ -938,7 +918,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     const config = SPIRIT_TYPES[spiritType] ?? SPIRIT_TYPES.fire;
     const textureKey = this.getSpiritTextureKey(spiritType);
 
-    if (this.optionalSpiritTextureKeys.has(spiritType) && this.textures.exists(textureKey)) {
+    if (this.textures.exists(textureKey)) {
       return this.createSpiritImageVisual(x, y, textureKey, config, layout);
     }
 

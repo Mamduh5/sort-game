@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { SPIRIT_SORT_LEVELS } from "../data/spiritSortLevels.js";
 import { getContinueLevelId, loadProgress, markLevelStarted } from "../systems/ProgressSave.js";
-import { loadSpiritTextureManifest } from "../systems/SpiritAssetLoader.js";
+import { getSpiritTextureKey } from "../systems/SpiritAssetLoader.js";
 
 const COLORS = {
   backgroundTop: 0x15162f,
@@ -24,8 +24,6 @@ const SPIRIT_PREVIEWS = [
   { type: "star", color: 0xffd45c, glow: 0xffef9b, label: "ST" }
 ];
 
-const SPIRIT_PREVIEW_BY_TYPE = Object.fromEntries(SPIRIT_PREVIEWS.map((spirit) => [spirit.type, spirit]));
-
 export default class TitleScene extends Phaser.Scene {
   constructor() {
     super("TitleScene");
@@ -36,10 +34,7 @@ export default class TitleScene extends Phaser.Scene {
     this.hasStarted = false;
     this.titleContainer = null;
     this.progress = loadProgress(SPIRIT_SORT_LEVELS);
-    this.optionalSpiritTextureKeys = new Set();
-    this.optionalSpiritAssetRequests = new Set();
     this.createTitleScreen();
-    this.loadOptionalSpiritAssetsFromManifest();
     this.scale.on("resize", this.handleResize, this);
     this.input.keyboard?.on("keydown-ENTER", this.startGame, this);
     this.input.keyboard?.on("keydown-SPACE", this.startGame, this);
@@ -52,22 +47,8 @@ export default class TitleScene extends Phaser.Scene {
     });
   }
 
-  async loadOptionalSpiritAssetsFromManifest() {
-    await loadSpiritTextureManifest(this, {
-      spiritTypes: SPIRIT_PREVIEW_BY_TYPE,
-      getTextureKey: (spiritType) => this.getSpiritTextureKey(spiritType),
-      loadedTypes: this.optionalSpiritTextureKeys,
-      requestedKeys: this.optionalSpiritAssetRequests,
-      onLoaded: () => {
-        if (this.titleContainer && !this.hasStarted) {
-          this.createTitleScreen();
-        }
-      }
-    });
-  }
-
   getSpiritTextureKey(spiritType) {
-    return `spirit-sort-${spiritType}`;
+    return getSpiritTextureKey(spiritType);
   }
 
   handleResize() {
@@ -283,7 +264,7 @@ export default class TitleScene extends Phaser.Scene {
   createSpiritIcon(x, y, size, spirit) {
     const textureKey = this.getSpiritTextureKey(spirit.type);
 
-    if (this.optionalSpiritTextureKeys.has(spirit.type) && this.textures.exists(textureKey)) {
+    if (this.textures.exists(textureKey)) {
       return this.createSpiritImageIcon(x, y, size, spirit, textureKey);
     }
 

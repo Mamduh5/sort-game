@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { loadSpiritTextureManifest } from "../systems/SpiritAssetLoader.js";
 
 const COLORS = {
   backgroundTop: 0x15162f,
@@ -21,24 +22,49 @@ const SPIRIT_PREVIEWS = [
   { type: "star", color: 0xffd45c, glow: 0xffef9b, label: "ST" }
 ];
 
+const SPIRIT_PREVIEW_BY_TYPE = Object.fromEntries(SPIRIT_PREVIEWS.map((spirit) => [spirit.type, spirit]));
+
 export default class TitleScene extends Phaser.Scene {
   constructor() {
     super("TitleScene");
   }
 
   create() {
+    this.isSceneAlive = true;
     this.hasStarted = false;
     this.titleContainer = null;
+    this.optionalSpiritTextureKeys = new Set();
+    this.optionalSpiritAssetRequests = new Set();
     this.createTitleScreen();
+    this.loadOptionalSpiritAssetsFromManifest();
     this.scale.on("resize", this.handleResize, this);
     this.input.keyboard?.on("keydown-ENTER", this.startGame, this);
     this.input.keyboard?.on("keydown-SPACE", this.startGame, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.isSceneAlive = false;
       this.scale.off("resize", this.handleResize, this);
       this.input.keyboard?.off("keydown-ENTER", this.startGame, this);
       this.input.keyboard?.off("keydown-SPACE", this.startGame, this);
     });
+  }
+
+  async loadOptionalSpiritAssetsFromManifest() {
+    await loadSpiritTextureManifest(this, {
+      spiritTypes: SPIRIT_PREVIEW_BY_TYPE,
+      getTextureKey: (spiritType) => this.getSpiritTextureKey(spiritType),
+      loadedTypes: this.optionalSpiritTextureKeys,
+      requestedKeys: this.optionalSpiritAssetRequests,
+      onLoaded: () => {
+        if (this.titleContainer && !this.hasStarted) {
+          this.createTitleScreen();
+        }
+      }
+    });
+  }
+
+  getSpiritTextureKey(spiritType) {
+    return `spirit-sort-${spiritType}`;
   }
 
   handleResize() {
@@ -250,6 +276,12 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   createSpiritIcon(x, y, size, spirit) {
+    const textureKey = this.getSpiritTextureKey(spirit.type);
+
+    if (this.optionalSpiritTextureKeys.has(spirit.type) && this.textures.exists(textureKey)) {
+      return this.createSpiritImageIcon(x, y, size, spirit, textureKey);
+    }
+
     const container = this.add.container(x, y);
     const glow = this.add.circle(0, 0, size * 0.72, spirit.glow, 0.16);
     const shadow = this.add.ellipse(0, size * 0.52, size * 0.78, size * 0.2, 0x0c0b18, 0.22);
@@ -266,6 +298,36 @@ export default class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     container.add([glow, shadow, ...this.createSpiritAccentParts(spirit.type, spirit, size), body, eyeLeft, eyeRight, label]);
+    return container;
+  }
+
+  createSpiritImageIcon(x, y, size, spirit, textureKey) {
+    const container = this.add.container(x, y);
+    const frame = this.textures.getFrame(textureKey);
+    const sourceWidth = Math.max(1, frame?.width ?? size);
+    const sourceHeight = Math.max(1, frame?.height ?? size);
+    const fitScale = (size * 1.18) / Math.max(sourceWidth, sourceHeight);
+
+    const glow = this.add.circle(0, 0, size * 0.82, spirit.glow, 0.18);
+    const softAura = this.add.circle(0, -size * 0.04, size * 0.58, 0xffe2a5, 0.08);
+    const shadow = this.add.ellipse(0, size * 0.54, size * 0.84, size * 0.2, 0x0c0b18, 0.22);
+    const rim = this.add.image(0, 0, textureKey)
+      .setOrigin(0.5)
+      .setScale(fitScale * 1.06)
+      .setTint(spirit.glow)
+      .setAlpha(0.2)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const image = this.add.image(0, 0, textureKey)
+      .setOrigin(0.5)
+      .setScale(fitScale);
+    const warmOverlay = this.add.image(0, 0, textureKey)
+      .setOrigin(0.5)
+      .setScale(fitScale)
+      .setTint(0xffe0a1)
+      .setAlpha(0.08)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    container.add([glow, softAura, shadow, rim, image, warmOverlay]);
     return container;
   }
 

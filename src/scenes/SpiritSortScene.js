@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { cloneLevel, SPIRIT_SORT_LEVELS } from "../data/spiritSortLevels.js";
+import { loadSpiritTextureManifest } from "../systems/SpiritAssetLoader.js";
 import { applyMove, canMove, findHintMove, isShelfComplete, isSolved, undoMove } from "../systems/SortRules.js";
 
 const SPIRIT_TYPES = {
@@ -39,10 +40,6 @@ const SPIRIT_TYPES = {
     text: "#382500"
   }
 };
-
-const ASSET_ROOT = "/assets/spirit-sort";
-const SPIRIT_ASSET_ROOT = `${ASSET_ROOT}/spirits`;
-const SPIRIT_MANIFEST_PATH = `${SPIRIT_ASSET_ROOT}/manifest.json`;
 
 const COLORS = {
   backgroundTop: 0x15162f,
@@ -96,11 +93,11 @@ const BASE_LAYOUT = {
   slotGap: 58,
   boardTop: 230,
   selectedTopLift: 12,
-  hudHeight: 118
+  hudHeight: 78
 };
 
 const MOBILE_LAYOUT = {
-  hudHeight: 102,
+  hudHeight: 84,
   buttonHeight: 32,
   buttonGap: 6,
   minShelfWidth: 68,
@@ -109,7 +106,7 @@ const MOBILE_LAYOUT = {
   maxShelfHeight: 220,
   rowGapMin: 16,
   rowGapMax: 26,
-  topClearance: 18,
+  topClearance: 38,
   bottomMargin: 18
 };
 
@@ -183,54 +180,17 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   async loadOptionalSpiritAssetsFromManifest() {
-    let manifest;
-
-    try {
-      const response = await fetch(SPIRIT_MANIFEST_PATH, { cache: "no-cache" });
-      if (!response.ok) return;
-      manifest = await response.json();
-    } catch {
-      return;
-    }
-
-    if (!this.isSceneAlive || !manifest?.spirits || typeof manifest.spirits !== "object") return;
-
-    Object.entries(manifest.spirits).forEach(([spiritType, fileName]) => {
-      if (!SPIRIT_TYPES[spiritType] || typeof fileName !== "string" || fileName.trim() === "") return;
-
-      this.loadOptionalSpiritImage(spiritType, `${SPIRIT_ASSET_ROOT}/${fileName}`);
+    await loadSpiritTextureManifest(this, {
+      spiritTypes: SPIRIT_TYPES,
+      getTextureKey: (spiritType) => this.getSpiritTextureKey(spiritType),
+      loadedTypes: this.optionalSpiritTextureKeys,
+      requestedKeys: this.optionalSpiritAssetRequests,
+      onLoaded: () => {
+        if (!this.isAnimating && this.boardContainer) {
+          this.redrawBoard();
+        }
+      }
     });
-  }
-
-  loadOptionalSpiritImage(spiritType, path) {
-    const textureKey = this.getSpiritTextureKey(spiritType);
-
-    if (this.textures.exists(textureKey)) {
-      this.optionalSpiritTextureKeys.add(spiritType);
-      return;
-    }
-
-    if (this.optionalSpiritAssetRequests.has(textureKey)) return;
-    this.optionalSpiritAssetRequests.add(textureKey);
-
-    const image = new Image();
-    image.onload = () => {
-      if (!this.isSceneAlive) return;
-
-      if (!this.textures.exists(textureKey)) {
-        this.textures.addImage(textureKey, image);
-      }
-
-      this.optionalSpiritTextureKeys.add(spiritType);
-
-      if (!this.isAnimating && this.boardContainer) {
-        this.redrawBoard();
-      }
-    };
-    image.onerror = () => {
-      this.optionalSpiritAssetRequests.delete(textureKey);
-    };
-    image.src = path;
   }
 
   getSpiritTextureKey(spiritType) {
@@ -367,17 +327,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       .rectangle(this.scale.width / 2, hud.bandHeight / 2, this.scale.width, hud.bandHeight, 0x17142d, 0.46);
     hudBand.setStrokeStyle(1, 0xd7aa68, 0.16);
     this.hudContainer.add(hudBand);
-
-    this.titleText = this.add
-      .text(hud.title.x, hud.title.y, "Spirit Shelf Sort", {
-        fontFamily: "Arial",
-        fontSize: `${hud.title.fontSize}px`,
-        color: COLORS.text,
-        fontStyle: "bold"
-      })
-      .setOrigin(hud.title.originX, 0.5);
-    this.titleText.setShadow(0, 2, "#050511", 4);
-    this.hudContainer.add(this.titleText);
+    this.titleText = null;
 
     this.levelText = this.add
       .text(hud.level.x, hud.level.y, "", {
@@ -431,9 +381,10 @@ export default class SpiritSortScene extends Phaser.Scene {
 
       return {
         bandHeight: BASE_LAYOUT.hudHeight,
-        title: { x: 48, y: 50, fontSize: 32, originX: 0 },
-        level: { x: 50, y: 82, fontSize: 17, originX: 0, wrapWidth: Math.max(300, width - 610) },
-        moves: { x: 50, y: 106, fontSize: 15, originX: 0 },
+        compactInfo: true,
+        includeLevelName: width >= 860,
+        level: { x: 50, y: 42, fontSize: 17, originX: 0, wrapWidth: Math.max(180, width - 585) },
+        moves: { x: 50, y: 0, fontSize: 1, originX: 0, hidden: true },
         buttonHeight: 38,
         buttonFontSize: 16,
         labels: {
@@ -468,13 +419,13 @@ export default class SpiritSortScene extends Phaser.Scene {
           ["mute", 56],
           ["next", 46]
         ];
-    const buttons = this.layoutButtonRow(width / 2, veryNarrow ? 76 : 80, buttonSpecs, gap, true);
+    const buttons = this.layoutButtonRow(width / 2, veryNarrow ? 60 : 64, buttonSpecs, gap, true);
 
     return {
-      bandHeight: veryNarrow ? 96 : MOBILE_LAYOUT.hudHeight,
+      bandHeight: veryNarrow ? 80 : MOBILE_LAYOUT.hudHeight,
       compactInfo: true,
-      title: { x: width / 2, y: veryNarrow ? 20 : 22, fontSize: veryNarrow ? 18 : 20, originX: 0.5 },
-      level: { x: width / 2, y: veryNarrow ? 45 : 48, fontSize: veryNarrow ? 12 : 13, originX: 0.5, wrapWidth: width - 20 },
+      includeLevelName: false,
+      level: { x: width / 2, y: veryNarrow ? 24 : 26, fontSize: veryNarrow ? 12 : 13, originX: 0.5, wrapWidth: width - 20 },
       moves: { x: width / 2, y: 0, fontSize: 1, originX: 0.5, hidden: true },
       buttonHeight: veryNarrow ? 30 : MOBILE_LAYOUT.buttonHeight,
       buttonFontSize: veryNarrow ? 11 : 12,
@@ -552,7 +503,8 @@ export default class SpiritSortScene extends Phaser.Scene {
     const hud = this.getHudLayout();
 
     if (hud.compactInfo) {
-      this.levelText.setText(`Level ${this.currentLevelIndex + 1} / ${SPIRIT_SORT_LEVELS.length} | Moves: ${this.moveCount}`);
+      const levelName = hud.includeLevelName ? `: ${this.currentLevel.name}` : "";
+      this.levelText.setText(`Level ${this.currentLevelIndex + 1} / ${SPIRIT_SORT_LEVELS.length}${levelName} | Moves: ${this.moveCount}`);
       this.moveText.setText("");
       this.moveText.setVisible(false);
     } else {

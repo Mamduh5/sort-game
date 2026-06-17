@@ -384,14 +384,12 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     this.moveText.setVisible(!hud.moves.hidden);
 
-    this.previousButton = this.createButton(hud.buttons.prev.x, hud.buttons.prev.y, hud.buttons.prev.width, hud.labels.prev, () => this.goToLevel(this.currentLevelIndex - 1));
     this.restartButton = this.createButton(hud.buttons.restart.x, hud.buttons.restart.y, hud.buttons.restart.width, hud.labels.restart, () => this.restartLevel());
     this.undoButton = this.createButton(hud.buttons.undo.x, hud.buttons.undo.y, hud.buttons.undo.width, hud.labels.undo, () => this.undoLastMove());
     this.hintButton = this.createButton(hud.buttons.hint.x, hud.buttons.hint.y, hud.buttons.hint.width, hud.labels.hint, () => this.showHint());
     this.muteButton = this.createButton(hud.buttons.mute.x, hud.buttons.mute.y, hud.buttons.mute.width, hud.labels.sound, () => this.toggleMute());
     this.levelsButton = this.createButton(hud.buttons.levels.x, hud.buttons.levels.y, hud.buttons.levels.width, hud.labels.levels, () => this.openLevelSelect());
-    this.nextButton = this.createButton(hud.buttons.next.x, hud.buttons.next.y, hud.buttons.next.width, hud.labels.next, () => this.goToLevel(this.currentLevelIndex + 1));
-    this.hudContainer.add([this.previousButton, this.restartButton, this.undoButton, this.hintButton, this.muteButton, this.levelsButton, this.nextButton]);
+    this.hudContainer.add([ this.restartButton, this.undoButton, this.hintButton, this.muteButton, this.levelsButton]);
 
     this.updateHud();
   }
@@ -402,13 +400,11 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     if (!isNarrow) {
       const buttonSpecs = [
-        ["prev", 62],
         ["restart", 88],
         ["undo", 70],
         ["hint", 70],
         ["mute", 86],
         ["levels", 82],
-        ["next", 62]
       ];
       const buttons = this.layoutButtonRow(width - 24, 42, buttonSpecs, 8);
 
@@ -421,14 +417,12 @@ export default class SpiritSortScene extends Phaser.Scene {
         buttonHeight: 38,
         buttonFontSize: 16,
         labels: {
-          prev: "Prev",
           restart: "Restart",
           undo: "Undo",
           hint: "Hint",
           sound: "Sound",
           muted: "Muted",
           levels: "Levels",
-          next: "Next"
         },
         buttons
       };
@@ -438,22 +432,18 @@ export default class SpiritSortScene extends Phaser.Scene {
     const gap = veryNarrow ? 3 : 4;
     const buttonSpecs = veryNarrow
       ? [
-          ["prev", 30],
           ["restart", 42],
           ["undo", 36],
           ["hint", 36],
           ["mute", 40],
           ["levels", 42],
-          ["next", 30]
         ]
       : [
-          ["prev", 40],
           ["restart", 52],
           ["undo", 42],
           ["hint", 40],
           ["mute", 48],
           ["levels", 48],
-          ["next", 40]
         ];
     const buttons = this.layoutButtonRow(width / 2, veryNarrow ? 60 : 64, buttonSpecs, gap, true);
 
@@ -466,14 +456,12 @@ export default class SpiritSortScene extends Phaser.Scene {
       buttonHeight: veryNarrow ? 30 : MOBILE_LAYOUT.buttonHeight,
       buttonFontSize: veryNarrow ? 11 : 12,
       labels: {
-        prev: veryNarrow ? "<" : "Prev",
         restart: "Reset",
         undo: "Undo",
         hint: "Hint",
         sound: "Sound",
         muted: "Mute",
         levels: veryNarrow ? "Map" : "Levels",
-        next: veryNarrow ? ">" : "Next"
       },
       buttons
     };
@@ -528,8 +516,6 @@ export default class SpiritSortScene extends Phaser.Scene {
 
   registerKeyboard() {
     this.input.keyboard.on("keydown-R", () => this.restartLevel());
-    this.input.keyboard.on("keydown-N", () => this.goToLevel(this.currentLevelIndex + 1));
-    this.input.keyboard.on("keydown-P", () => this.goToLevel(this.currentLevelIndex - 1));
     this.input.keyboard.on("keydown-U", () => this.undoLastMove());
     this.input.keyboard.on("keydown-BACKSPACE", () => this.undoLastMove());
     this.input.keyboard.on("keydown-H", () => this.showHint());
@@ -553,9 +539,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       this.moveText.setVisible(true);
     }
 
-    this.previousButton.setAlpha(this.currentLevelIndex === 0 ? 0.45 : 1);
     const nextLevel = SPIRIT_SORT_LEVELS[this.currentLevelIndex + 1];
-    this.nextButton.setAlpha(!nextLevel || !isLevelUnlocked(this.progress, nextLevel.id) ? 0.45 : 1);
     this.undoButton.setAlpha(this.canUndo() ? 1 : 0.45);
     this.hintButton.setAlpha(this.canUseHint() ? 1 : 0.45);
     this.muteButton.buttonText.setText(this.isMuted ? hud.labels.muted : hud.labels.sound);

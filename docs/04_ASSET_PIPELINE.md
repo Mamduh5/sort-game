@@ -29,8 +29,18 @@ Recommended format:
 - `128x128` PNG
 - transparent background
 - centered spirit silhouette
+- consistent padding around the spirit body and glow
 - readable at small size when stacked on shelves
 - no text baked into the image
+- do not use high-res PSD or source files directly in-game
+
+Final export expectations:
+
+- export one transparent PNG per spirit
+- keep the spirit centered on the canvas
+- use similar body scale and padding across all spirits
+- `128x128` is the recommended runtime export size
+- keep PSD, layered, or high-resolution source files outside the runtime asset path
 
 ## Spirit Manifest
 

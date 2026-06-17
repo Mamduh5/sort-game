@@ -99,6 +99,14 @@ const BASE_LAYOUT = {
   hudHeight: 118
 };
 
+const SPIRIT_VISUALS = {
+  imageFitRatio: 1.14,
+  rimScale: 1.08,
+  selectedScale: 1.06,
+  idleFloat: 1.6,
+  selectedIdleFloat: 3
+};
+
 export default class SpiritSortScene extends Phaser.Scene {
   constructor() {
     super("SpiritSortScene");
@@ -122,6 +130,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.shelfViews = [];
     this.boardLayout = null;
     this.hintEffects = [];
+    this.boardTweenTargets = [];
 
     this.loadOptionalSpiritAssetsFromManifest();
     this.createBackground();
@@ -586,6 +595,7 @@ export default class SpiritSortScene extends Phaser.Scene {
 
   redrawBoard() {
     this.clearHintFeedback();
+    this.clearBoardTweens();
 
     if (this.boardContainer) {
       this.boardContainer.destroy(true);
@@ -679,6 +689,7 @@ export default class SpiritSortScene extends Phaser.Scene {
   createShelfView(index, position, shelf) {
     const layout = this.getCurrentLayout();
     const container = this.add.container(position.x, position.y);
+    const spiritViews = [];
     const selected = this.selectedShelfIndex === index;
     const complete = isShelfComplete(shelf, this.capacity);
 
@@ -752,17 +763,23 @@ export default class SpiritSortScene extends Phaser.Scene {
       );
 
       if (isSelectedTop) {
-        spirit.setScale(1.06);
+        spirit.setScale(spirit.scaleX * SPIRIT_VISUALS.selectedScale, spirit.scaleY * SPIRIT_VISUALS.selectedScale);
       }
 
+      this.applySpiritIdleAnimation(spirit, index, stackIndex, isSelectedTop);
+      spiritViews[stackIndex] = spirit;
       container.add(spirit);
     });
 
     if (complete) {
+      const completeSparkles = [];
+
       for (let i = 0; i < 4; i += 1) {
         const sparkleX = -layout.shelfWidth * 0.32 + i * (layout.shelfWidth * 0.21);
         const sparkleY = 20 + (i % 2) * 16;
-        container.add(this.add.circle(sparkleX, sparkleY, 3, COLORS.complete, 0.58));
+        const sparkle = this.add.circle(sparkleX, sparkleY, 3, COLORS.complete, 0.58);
+        completeSparkles.push(sparkle);
+        container.add(sparkle);
       }
 
       const restoredText = this.add
@@ -774,11 +791,12 @@ export default class SpiritSortScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
       container.add(restoredText);
+      this.applyCompletedShelfAnimation(glow, completeSparkles);
     }
 
     container.add(zone);
 
-    return { container, position };
+    return { container, position, spiritViews };
   }
 
   shouldHideSpirit(shelfIndex, stackIndex) {
@@ -801,9 +819,9 @@ export default class SpiritSortScene extends Phaser.Scene {
     const container = this.add.container(x, y);
     const spiritScale = layout.spiritSize / BASE_LAYOUT.spiritSize;
 
-    const glow = this.add.circle(0, 0, BASE_LAYOUT.spiritSize / 2 + 10, config.glow, 0.2);
-    const shadow = this.add.ellipse(0, 22, 40, 10, 0x0c0b18, 0.18);
+    const glowParts = this.createSpiritGlowParts(config, BASE_LAYOUT.spiritSize);
     const bodyParts = this.createSpiritBodyParts(spiritType, config);
+    const warmLight = this.createSpiritWarmLight(BASE_LAYOUT.spiritSize);
 
     const eyeLeft = this.add.circle(-10, -7, 3, 0x1d1b2d, 1);
     const eyeRight = this.add.circle(10, -7, 3, 0x1d1b2d, 1);
@@ -816,20 +834,114 @@ export default class SpiritSortScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    container.add([glow, shadow, ...bodyParts, eyeLeft, eyeRight, label]);
+    container.add([...glowParts, ...bodyParts, warmLight, eyeLeft, eyeRight, label]);
     container.setScale(spiritScale);
     return container;
   }
 
   createSpiritImageVisual(x, y, textureKey, config, layout) {
     const container = this.add.container(x, y);
-    const glow = this.add.circle(0, 0, layout.spiritSize / 2 + 8, config.glow, 0.22);
-    const shadow = this.add.ellipse(0, layout.spiritSize * 0.42, layout.spiritSize * 0.76, 10, 0x0c0b18, 0.18);
+    const frame = this.textures.getFrame(textureKey);
+    const textureWidth = Math.max(1, frame?.width ?? frame?.realWidth ?? 128);
+    const textureHeight = Math.max(1, frame?.height ?? frame?.realHeight ?? 128);
+    const fitScale = (layout.spiritSize * SPIRIT_VISUALS.imageFitRatio) / Math.max(textureWidth, textureHeight);
+    const glowParts = this.createSpiritGlowParts(config, layout.spiritSize);
+    const rimGlow = this.add.image(0, 0, textureKey);
     const image = this.add.image(0, 0, textureKey);
-    image.setDisplaySize(layout.spiritSize * 1.18, layout.spiritSize * 1.18);
+    const warmOverlay = this.add.image(0, 0, textureKey);
+    const warmLight = this.createSpiritWarmLight(layout.spiritSize);
 
-    container.add([glow, shadow, image]);
+    rimGlow
+      .setScale(fitScale * SPIRIT_VISUALS.rimScale)
+      .setTint(config.glow)
+      .setAlpha(0.24)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    image.setScale(fitScale);
+    warmOverlay
+      .setScale(fitScale)
+      .setTint(0xffe2a5)
+      .setAlpha(0.14)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    container.add([...glowParts, rimGlow, image, warmOverlay, warmLight]);
     return container;
+  }
+
+  createSpiritGlowParts(config, size) {
+    const outerGlow = this.add.circle(0, -size * 0.03, size * 0.68, config.glow, 0.18);
+    const innerGlow = this.add.circle(0, -size * 0.04, size * 0.5, config.color, 0.1);
+    const groundGlow = this.add.ellipse(0, size * 0.43, size * 0.82, size * 0.2, config.glow, 0.12);
+    const shadow = this.add.ellipse(0, size * 0.47, size * 0.78, size * 0.17, 0x0c0b18, 0.2);
+
+    return [outerGlow, innerGlow, groundGlow, shadow];
+  }
+
+  createSpiritWarmLight(size) {
+    return this.add.ellipse(-size * 0.14, -size * 0.28, size * 0.62, size * 0.3, 0xffe8b2, 0.1);
+  }
+
+  applySpiritIdleAnimation(spirit, shelfIndex, stackIndex, isSelectedTop = false) {
+    if (!spirit) return;
+
+    const baseY = spirit.y;
+    const baseScaleX = spirit.scaleX;
+    const baseScaleY = spirit.scaleY;
+    const floatAmount = isSelectedTop ? SPIRIT_VISUALS.selectedIdleFloat : SPIRIT_VISUALS.idleFloat;
+    const scalePulse = isSelectedTop ? 1.035 : 1.018;
+    const duration = 1500 + ((shelfIndex * 97 + stackIndex * 53) % 360);
+
+    this.tweens.add({
+      targets: spirit,
+      y: baseY - floatAmount,
+      scaleX: baseScaleX * scalePulse,
+      scaleY: baseScaleY * (isSelectedTop ? 1.025 : 1.012),
+      duration,
+      delay: (shelfIndex * 80 + stackIndex * 120) % 420,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
+    this.trackBoardTweenTargets(spirit);
+  }
+
+  applyCompletedShelfAnimation(glow, sparkles) {
+    this.tweens.add({
+      targets: glow,
+      alpha: Math.min(0.38, glow.alpha + 0.1),
+      scaleX: 1.025,
+      scaleY: 1.015,
+      duration: 1700,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
+    this.trackBoardTweenTargets(glow);
+
+    sparkles.forEach((sparkle, index) => {
+      this.tweens.add({
+        targets: sparkle,
+        y: sparkle.y - 5,
+        alpha: 0.18,
+        scale: 1.35,
+        duration: 900 + index * 120,
+        delay: index * 140,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+      this.trackBoardTweenTargets(sparkle);
+    });
+  }
+
+  trackBoardTweenTargets(...targets) {
+    this.boardTweenTargets.push(...targets.filter(Boolean));
+  }
+
+  clearBoardTweens() {
+    if (!this.boardTweenTargets?.length) return;
+
+    this.tweens.killTweensOf(this.boardTweenTargets);
+    this.boardTweenTargets = [];
   }
 
   createSpiritBodyParts(spiritType, config) {
@@ -929,6 +1041,8 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.redrawBoard();
 
     const movingVisual = this.createSpiritVisual(start.x, start.y, movingSpirit).setDepth(40);
+    const movingScaleX = movingVisual.scaleX;
+    const movingScaleY = movingVisual.scaleY;
     const midPoint = {
       x: (start.x + end.x) / 2,
       y: Math.min(start.y, end.y) - Phaser.Math.Clamp(layout.shelfHeight * 0.3, 42, 84)
@@ -938,7 +1052,8 @@ export default class SpiritSortScene extends Phaser.Scene {
       targets: movingVisual,
       x: midPoint.x,
       y: midPoint.y,
-      scale: 1.08,
+      scaleX: movingScaleX * 1.08,
+      scaleY: movingScaleY * 1.08,
       duration: 150,
       ease: "Sine.easeOut",
       onComplete: () => {
@@ -946,7 +1061,8 @@ export default class SpiritSortScene extends Phaser.Scene {
           targets: movingVisual,
           x: end.x,
           y: end.y,
-          scale: 1,
+          scaleX: movingScaleX,
+          scaleY: movingScaleY,
           duration: 170,
           ease: "Sine.easeIn",
           onComplete: () => {
@@ -1003,6 +1119,33 @@ export default class SpiritSortScene extends Phaser.Scene {
     const view = this.shelfViews[shelfIndex];
     if (!view) return;
     const layout = this.getCurrentLayout();
+    const stackIndex = this.shelves[shelfIndex]?.length - 1;
+    const landedSpirit = view.spiritViews?.[stackIndex];
+
+    if (landedSpirit) {
+      this.tweens.killTweensOf(landedSpirit);
+
+      const baseY = landedSpirit.y;
+      const baseScaleX = landedSpirit.scaleX;
+      const baseScaleY = landedSpirit.scaleY;
+
+      this.tweens.add({
+        targets: landedSpirit,
+        y: baseY + 2,
+        scaleX: baseScaleX * 1.12,
+        scaleY: baseScaleY * 0.9,
+        duration: 82,
+        yoyo: true,
+        ease: "Sine.easeOut",
+        onComplete: () => {
+          if (!landedSpirit.active) return;
+
+          landedSpirit.y = baseY;
+          landedSpirit.setScale(baseScaleX, baseScaleY);
+          this.applySpiritIdleAnimation(landedSpirit, shelfIndex, stackIndex, false);
+        }
+      });
+    }
 
     this.tweens.add({
       targets: view.container,

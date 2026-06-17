@@ -15,6 +15,7 @@ The save tracks:
 - best move count per completed level
 - current or last played level
 - muted state
+- whether the Blessed Shelf tutorial has been dismissed
 
 If storage is missing, disabled, corrupted, or has an unsupported version, the game falls back to a safe default with Level 1 unlocked. Gameplay must continue even when saving fails.
 
@@ -36,16 +37,30 @@ SpiritSortScene -> LevelSelectScene
 
 ## Level Pack Rules
 
-The level pack currently contains 24 levels in `src/data/spiritSortLevels.js`.
+The level pack currently contains 36 levels in `src/data/spiritSortLevels.js`.
 
 Level rules:
 
-- IDs are sequential from 1 to 24.
+- IDs are sequential from 1 to 36.
 - Names are non-empty shrine/spirit themed strings.
 - Capacity is 4.
 - Levels use only existing spirit IDs: `fire`, `leaf`, `moon`, `cloud`, `star`.
 - Most levels start with two empty shelves.
 - Early levels are gentle, middle levels are moderate, and late levels are more mixed while staying fair.
+- Levels 1-24 are classic levels with no Blessed Shelves.
+- Levels 25-36 introduce Blessed Shelves.
+
+## Blessed Shelf Rule
+
+A Blessed Shelf can receive any spirit type if it has space. Moving out of a Blessed Shelf still follows normal rules based on the target shelf.
+
+Use optional level data:
+
+```js
+blessedShelves: [4]
+```
+
+Missing `blessedShelves` behaves as `[]`. Indexes must be valid shelf indexes.
 
 ## Adding Levels Safely
 
@@ -56,9 +71,10 @@ When adding or editing a level:
 3. Make each spirit count divisible by capacity.
 4. Keep at least two empty shelves unless there is a strong reason not to.
 5. Use only known spirit IDs unless the renderer and asset fallback also support the new type.
-6. Run `npm test` before considering the level valid.
+6. For Blessed levels, keep `blessedShelves` as valid shelf indexes.
+7. Run `npm test` before considering the level valid.
 
-The test suite validates level count, ID order, names, capacity, known spirit IDs, empty shelf space, group counts, solvability, and solver non-mutation.
+The test suite validates level count, ID order, names, capacity, known spirit IDs, empty shelf space, group counts, Blessed Shelf indexes, solvability, and solver non-mutation.
 
 ## Spirit Personality Rules
 

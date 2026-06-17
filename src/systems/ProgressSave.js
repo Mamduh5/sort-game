@@ -7,7 +7,8 @@ export function createDefaultProgress() {
     unlockedLevelId: 1,
     completedLevels: {},
     currentLevelId: 1,
-    muted: false
+    muted: false,
+    seenBlessedShelfTutorial: false
   };
 }
 
@@ -84,6 +85,12 @@ export function setMuted(progress, muted, levels, storage = getStorage()) {
   return saveProgress(normalized, levels, storage);
 }
 
+export function setBlessedShelfTutorialSeen(progress, seen, levels, storage = getStorage()) {
+  const normalized = normalizeProgress(progress, levels);
+  normalized.seenBlessedShelfTutorial = Boolean(seen);
+  return saveProgress(normalized, levels, storage);
+}
+
 export function resetProgress(levels, preserveMuted = false, previousProgress = null, storage = getStorage()) {
   const nextProgress = createDefaultProgress();
   if (preserveMuted && previousProgress) {
@@ -122,6 +129,7 @@ function clampProgress(progress, validLevelIds, maxLevelId) {
     ? clampLevelId(currentLevelId, validLevelIds, maxLevelId)
     : nextProgress.unlockedLevelId;
   nextProgress.muted = Boolean(progress.muted);
+  nextProgress.seenBlessedShelfTutorial = Boolean(progress.seenBlessedShelfTutorial);
   nextProgress.completedLevels = normalizeCompletedLevels(progress.completedLevels, validLevelIds);
 
   return nextProgress;

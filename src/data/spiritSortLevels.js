@@ -318,12 +318,169 @@ export const SPIRIT_SORT_LEVELS = [
       [],
       []
     ]
+  },
+  {
+    id: 25,
+    name: "Blessed Lantern",
+    capacity: 4,
+    shelves: [
+      ["fire", "leaf", "moon", "fire"],
+      ["leaf", "moon", "fire", "leaf"],
+      ["moon", "fire", "leaf", "moon"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 26,
+    name: "Moonwell Rest",
+    capacity: 4,
+    shelves: [
+      ["fire", "moon", "fire", "moon"],
+      ["moon", "leaf", "moon", "leaf"],
+      ["leaf", "fire", "leaf", "fire"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 27,
+    name: "Kindling Blessing",
+    capacity: 4,
+    shelves: [
+      ["cloud", "fire", "leaf", "cloud"],
+      ["leaf", "cloud", "fire", "leaf"],
+      ["fire", "leaf", "cloud", "fire"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 28,
+    name: "Cedar Offering",
+    capacity: 4,
+    shelves: [
+      ["leaf", "leaf", "moon", "fire"],
+      ["fire", "moon", "moon", "fire"],
+      ["leaf", "moon", "leaf", "fire"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 29,
+    name: "Cloud Shrine Charm",
+    capacity: 4,
+    shelves: [
+      ["leaf", "fire", "moon", "fire"],
+      ["fire", "leaf", "moon", "leaf"],
+      ["leaf", "moon", "moon", "fire"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 30,
+    name: "Warm Star Respite",
+    capacity: 4,
+    shelves: [
+      ["star", "fire", "star", "moon"],
+      ["moon", "star", "fire", "moon"],
+      ["fire", "moon", "star", "fire"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 31,
+    name: "Blessed Moon Path",
+    capacity: 4,
+    shelves: [
+      ["cloud", "moon", "cloud", "star"],
+      ["star", "cloud", "moon", "star"],
+      ["moon", "star", "cloud", "moon"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 32,
+    name: "Lantern Safe Haven",
+    capacity: 4,
+    shelves: [
+      ["fire", "cloud", "leaf", "cloud"],
+      ["leaf", "fire", "cloud", "leaf"],
+      ["cloud", "leaf", "fire", "fire"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 33,
+    name: "Fivefold Blessing",
+    capacity: 4,
+    shelves: [
+      ["star", "leaf", "moon", "star"],
+      ["moon", "leaf", "star", "moon"],
+      ["leaf", "star", "leaf", "moon"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 34,
+    name: "Resting Star Rite",
+    capacity: 4,
+    shelves: [
+      ["cloud", "fire", "moon", "fire"],
+      ["moon", "cloud", "fire", "cloud"],
+      ["fire", "moon", "cloud", "moon"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 35,
+    name: "Moonlit Mercy",
+    capacity: 4,
+    shelves: [
+      ["star", "cloud", "leaf", "star"],
+      ["leaf", "star", "cloud", "leaf"],
+      ["cloud", "leaf", "star", "cloud"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
+  },
+  {
+    id: 36,
+    name: "Final Blessed Shrine",
+    capacity: 4,
+    shelves: [
+      ["fire", "moon", "star", "fire"],
+      ["star", "fire", "moon", "star"],
+      ["moon", "star", "fire", "moon"],
+      [],
+      []
+    ],
+    blessedShelves: [4]
   }
 ];
 
 export function cloneLevel(level) {
   return {
     ...level,
-    shelves: level.shelves.map((shelf) => [...shelf])
+    shelves: level.shelves.map((shelf) => [...shelf]),
+    blessedShelves: [...(level.blessedShelves ?? [])]
   };
 }

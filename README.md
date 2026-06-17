@@ -20,9 +20,10 @@ https://mamduh5.github.io/sort-game/
 
 ## Features
 
-- 24 handcrafted levels
+- 36 handcrafted levels
 - Cozy night-shrine theme
 - Tiny spirit personalities and soft magical feedback
+- Blessed Shelf levels with a gentle special receiving rule
 - Level select with locked, current, and completed states
 - Local progress save
 - Best move tracking

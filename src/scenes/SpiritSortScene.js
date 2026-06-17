@@ -7,6 +7,7 @@ import {
   loadProgress,
   markLevelComplete,
   markLevelStarted,
+  setBlessedShelfTutorialSeen,
   setMuted
 } from "../systems/ProgressSave.js";
 import { getSpiritTextureKey } from "../systems/SpiritAssetLoader.js";
@@ -62,6 +63,8 @@ const COLORS = {
   shelfInside: 0x2d243b,
   selected: 0xf7d783,
   complete: 0x9df0d2,
+  blessed: 0x8feeff,
+  blessedGold: 0xffe6a5,
   invalid: 0xff6b7a,
   text: "#fff6dd",
   mutedText: "#c7bfe8"
@@ -159,17 +162,20 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.boardLayout = null;
     this.hintEffects = [];
     this.boardTweenTargets = [];
+    this.tutorialContainer = null;
 
     this.createBackground();
     this.loadLevel(this.currentLevelIndex);
     this.createHud();
     this.redrawBoard();
+    this.maybeShowBlessedShelfTutorial();
     this.registerKeyboard();
     this.scale.on("resize", this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.isSceneAlive = false;
       this.clearBoardTweens();
       this.clearHintFeedback();
+      this.destroyBlessedShelfTutorial();
       this.scale.off("resize", this.handleResize, this);
     });
   }
@@ -184,6 +190,8 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.isMuted = this.progress.muted;
     this.capacity = level.capacity ?? 4;
     this.shelves = level.shelves;
+    this.blessedShelves = [...(level.blessedShelves ?? [])];
+    this.blessedShelfSet = new Set(this.blessedShelves);
     this.selectedShelfIndex = null;
     this.isAnimating = false;
     this.hiddenSpirit = null;
@@ -197,6 +205,8 @@ export default class SpiritSortScene extends Phaser.Scene {
       this.winContainer.destroy(true);
       this.winContainer = null;
     }
+
+    this.destroyBlessedShelfTutorial();
   }
 
   getLevelIndexFromId(levelId) {
@@ -208,15 +218,28 @@ export default class SpiritSortScene extends Phaser.Scene {
     return getSpiritTextureKey(spiritType);
   }
 
+  getMoveOptions() {
+    return { blessedShelves: this.blessedShelves ?? [] };
+  }
+
+  isCurrentShelfBlessed(shelfIndex) {
+    return this.blessedShelfSet?.has(shelfIndex) ?? false;
+  }
+
   handleResize() {
     if (this.isAnimating) return;
 
+    const tutorialWasOpen = Boolean(this.tutorialContainer);
     this.createBackground();
     this.createHud();
     this.redrawBoard();
 
     if (this.hasWon) {
       this.showWinMessage();
+    }
+
+    if (tutorialWasOpen) {
+      this.showBlessedShelfTutorial();
     }
   }
 
@@ -532,6 +555,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.loadLevel(this.currentLevelIndex);
     this.updateHud();
     this.redrawBoard();
+    this.maybeShowBlessedShelfTutorial();
   }
 
   goToLevel(levelIndex) {
@@ -550,6 +574,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.loadLevel(nextIndex);
     this.updateHud();
     this.redrawBoard();
+    this.maybeShowBlessedShelfTutorial();
   }
 
   openLevelSelect() {
@@ -591,7 +616,7 @@ export default class SpiritSortScene extends Phaser.Scene {
   showHint() {
     if (!this.canUseHint()) return;
 
-    const hint = findHintMove(this.shelves, this.capacity);
+    const hint = findHintMove(this.shelves, this.capacity, this.getMoveOptions());
 
     if (!hint) {
       this.playSound("invalid");
@@ -787,12 +812,17 @@ export default class SpiritSortScene extends Phaser.Scene {
     const spiritViews = [];
     const selected = this.selectedShelfIndex === index;
     const complete = isShelfComplete(shelf, this.capacity);
+    const blessed = this.isCurrentShelfBlessed(index);
 
     const glowColor = selected ? COLORS.selected : COLORS.complete;
     const glowAlpha = selected ? 0.46 : complete ? 0.26 : 0;
     const glowPadding = layout.isMobile ? 18 : 28;
     const glow = this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + glowPadding, layout.shelfHeight + (layout.isMobile ? 24 : 34), glowColor, glowAlpha);
     glow.setStrokeStyle(selected ? 4 : 2, glowColor, selected || complete ? 0.85 : 0);
+    const blessedAura = blessed
+      ? this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + glowPadding + 8, layout.shelfHeight + (layout.isMobile ? 32 : 44), COLORS.blessed, 0.12)
+        .setStrokeStyle(2, COLORS.blessedGold, 0.42)
+      : null;
 
     const roofHalf = layout.shelfWidth / 2 + (layout.isMobile ? 8 : 18);
     const roofInset = Math.max(24, layout.shelfWidth / 2 - 2);
@@ -807,7 +837,14 @@ export default class SpiritSortScene extends Phaser.Scene {
     const back = this.add
       .rectangle(0, layout.shelfHeight / 2, layout.shelfWidth, layout.shelfHeight, COLORS.shelfInside, 0.86)
       .setStrokeStyle(layout.isMobile ? 3 : 4, COLORS.shelfWoodLight, 0.92);
-    const innerGlow = this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth - (layout.isMobile ? 16 : 24), layout.shelfHeight - (layout.isMobile ? 20 : 28), 0xf7d783, 0.05);
+    const innerGlow = this.add.rectangle(
+      0,
+      layout.shelfHeight / 2,
+      layout.shelfWidth - (layout.isMobile ? 16 : 24),
+      layout.shelfHeight - (layout.isMobile ? 20 : 28),
+      blessed ? COLORS.blessed : 0xf7d783,
+      blessed ? 0.09 : 0.05
+    );
 
     const postWidth = layout.isMobile ? 10 : 14;
     const postInset = layout.isMobile ? 7 : 9;
@@ -826,6 +863,9 @@ export default class SpiritSortScene extends Phaser.Scene {
     }
 
     const charm = this.add.circle(0, layout.shelfHeight + (layout.isMobile ? 2 : 5), layout.isMobile ? 4 : 5, COLORS.shelfGold, 0.8);
+    const blessedMark = blessed
+      ? this.add.star(layout.shelfWidth / 2 - (layout.isMobile ? 16 : 20), layout.isMobile ? -8 : -22, 5, layout.isMobile ? 4 : 5, layout.isMobile ? 9 : 11, COLORS.blessedGold, 0.86)
+      : null;
     const leftKnot = this.add.circle(-layout.shelfWidth / 2 + postInset, layout.isMobile ? 38 : 46, layout.isMobile ? 2.5 : 3, COLORS.shelfWoodDark, 0.7);
     const rightKnot = this.add.circle(layout.shelfWidth / 2 - postInset, Math.min(layout.isMobile ? 96 : 116, layout.shelfHeight - 36), layout.isMobile ? 2.5 : 3, COLORS.shelfWoodDark, 0.7);
 
@@ -834,6 +874,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     zone.on("pointerdown", () => this.handleShelfTap(index));
 
     container.add([
+      blessedAura,
       glow,
       roof,
       roofTrim,
@@ -846,9 +887,14 @@ export default class SpiritSortScene extends Phaser.Scene {
       base,
       top,
       charm,
+      blessedMark,
       leftKnot,
       rightKnot
-    ]);
+    ].filter(Boolean));
+
+    if (blessed) {
+      this.applyBlessedShelfAnimation(blessedAura, blessedMark);
+    }
 
     if (selected) {
       const selectorY = layout.isMobile ? -23 : -32;
@@ -1052,6 +1098,120 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.boardTweenTargets = [];
   }
 
+  applyBlessedShelfAnimation(aura, mark) {
+    if (aura) {
+      this.tweens.add({
+        targets: aura,
+        alpha: 0.2,
+        scaleX: 1.018,
+        scaleY: 1.01,
+        duration: 1700,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+      this.trackBoardTweenTargets(aura);
+    }
+
+    if (mark) {
+      this.tweens.add({
+        targets: mark,
+        alpha: 0.58,
+        angle: 8,
+        duration: 1900,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+      this.trackBoardTweenTargets(mark);
+    }
+  }
+
+  maybeShowBlessedShelfTutorial() {
+    if (this.currentLevel?.id !== 25) return;
+    if (!this.blessedShelves?.length) return;
+    if (this.progress.seenBlessedShelfTutorial) return;
+
+    this.showBlessedShelfTutorial();
+  }
+
+  showBlessedShelfTutorial() {
+    this.destroyBlessedShelfTutorial();
+
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const panelWidth = Math.min(width - 28, width < 420 ? 312 : 390);
+    const panelHeight = width < 420 ? 174 : 184;
+    const panelY = Math.min(height - panelHeight / 2 - 18, this.getHudLayout().bandHeight + panelHeight / 2 + 20);
+    const titleSize = width < 420 ? 20 : 24;
+    const bodySize = width < 420 ? 13 : 15;
+
+    this.tutorialContainer = this.add.container(0, 0).setDepth(70);
+    const scrim = this.add.rectangle(width / 2, height / 2, width, height, 0x070711, 0.42);
+    scrim.setInteractive();
+
+    const panel = this.add
+      .rectangle(width / 2, panelY, panelWidth, panelHeight, 0x211c37, 0.96)
+      .setStrokeStyle(3, COLORS.blessedGold, 0.86);
+    const title = this.add
+      .text(width / 2, panelY - panelHeight * 0.32, "Blessed Shelf", {
+        fontFamily: "Arial",
+        fontSize: `${titleSize}px`,
+        color: COLORS.text,
+        fontStyle: "bold"
+      })
+      .setOrigin(0.5);
+    title.setShadow(0, 2, "#050511", 4);
+
+    const detail = this.add
+      .text(width / 2, panelY - 12, "This glowing shelf can receive any spirit type.\nUse it as a magical resting place.", {
+        fontFamily: "Arial",
+        fontSize: `${bodySize}px`,
+        color: COLORS.mutedText,
+        align: "center",
+        lineSpacing: 5,
+        wordWrap: { width: panelWidth - 34, useAdvancedWrap: true }
+      })
+      .setOrigin(0.5);
+    detail.setShadow(0, 1, "#050511", 3);
+
+    const buttonWidth = width < 420 ? 108 : 124;
+    const buttonHeight = 34;
+    const buttonY = panelY + panelHeight * 0.34;
+    const button = this.add.container(width / 2, buttonY);
+    const buttonBackground = this.add
+      .rectangle(0, 0, buttonWidth, buttonHeight, 0x342538, 0.96)
+      .setStrokeStyle(2, COLORS.blessedGold, 0.82);
+    const buttonText = this.add
+      .text(0, 0, "Got it", {
+        fontFamily: "Arial",
+        fontSize: `${width < 420 ? 14 : 15}px`,
+        color: COLORS.text,
+        fontStyle: "bold"
+      })
+      .setOrigin(0.5);
+    button.add([buttonBackground, buttonText]);
+    button.setSize(buttonWidth, buttonHeight);
+    button.setInteractive({ useHandCursor: true });
+    button.on("pointerdown", () => this.dismissBlessedShelfTutorial());
+    button.on("pointerover", () => buttonBackground.setFillStyle(0x4b3b68, 0.98));
+    button.on("pointerout", () => buttonBackground.setFillStyle(0x342538, 0.96));
+
+    this.tutorialContainer.add([scrim, panel, title, detail, button]);
+  }
+
+  dismissBlessedShelfTutorial() {
+    this.progress = setBlessedShelfTutorialSeen(this.progress, true, SPIRIT_SORT_LEVELS);
+    this.destroyBlessedShelfTutorial();
+  }
+
+  destroyBlessedShelfTutorial() {
+    if (!this.tutorialContainer) return;
+
+    this.tutorialContainer.destroy(true);
+    this.tutorialContainer = null;
+  }
+
   createSpiritBodyParts(spiritType, config) {
     const outlineColor = 0xffffff;
 
@@ -1097,6 +1257,7 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   handleShelfTap(targetIndex) {
+    if (this.tutorialContainer) return;
     if (this.isAnimating || this.hasWon) return;
 
     if (this.selectedShelfIndex === null) {
@@ -1116,7 +1277,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       return;
     }
 
-    if (!canMove(this.shelves, sourceIndex, targetIndex, this.capacity)) {
+    if (!canMove(this.shelves, sourceIndex, targetIndex, this.capacity, this.getMoveOptions())) {
       this.selectedShelfIndex = null;
       this.redrawBoard();
       this.playSpiritRefusalFeedback(sourceIndex);
@@ -1139,7 +1300,7 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     const targetWasComplete = isShelfComplete(this.shelves[targetIndex], this.capacity);
 
-    applyMove(this.shelves, sourceIndex, targetIndex, this.capacity);
+    applyMove(this.shelves, sourceIndex, targetIndex, this.capacity, this.getMoveOptions());
     this.moveHistory.push({ sourceIndex, targetIndex, spirit: movingSpirit });
     this.moveCount += 1;
     this.updateHud();

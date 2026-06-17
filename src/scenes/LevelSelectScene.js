@@ -19,6 +19,8 @@ const COLORS = {
   shelfGold: 0xd7aa68,
   selected: 0xf7d783,
   complete: 0x9df0d2,
+  blessed: 0x8feeff,
+  blessedGold: 0xffe6a5,
   text: "#fff6dd",
   mutedText: "#c7bfe8"
 };
@@ -63,15 +65,15 @@ export default class LevelSelectScene extends Phaser.Scene {
 
   getLayout(width, height) {
     const isMobile = width < 700;
-    const columns = isMobile ? (width < 350 ? 4 : 4) : 6;
-    const gap = isMobile ? 8 : 14;
+    const columns = isMobile ? (width < 340 ? 4 : 5) : 6;
+    const gap = isMobile ? 6 : 10;
     const cardWidth = isMobile
-      ? Phaser.Math.Clamp((width - 28 - gap * (columns - 1)) / columns, 62, 78)
-      : 112;
-    const cardHeight = isMobile ? 54 : 70;
-    const gridTop = isMobile ? 116 : 150;
-    const titleSize = isMobile ? 28 : 42;
-    const subtitleSize = isMobile ? 13 : 16;
+      ? Phaser.Math.Clamp((width - 28 - gap * (columns - 1)) / columns, 54, 72)
+      : 104;
+    const cardHeight = isMobile ? 44 : 58;
+    const gridTop = isMobile ? 106 : 136;
+    const titleSize = isMobile ? 26 : 38;
+    const subtitleSize = isMobile ? 12 : 16;
     const buttonY = height - (isMobile ? 36 : 42);
 
     return {
@@ -167,6 +169,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     const completion = getLevelCompletion(this.progress, level.id);
     const completed = Boolean(completion?.completed);
     const current = this.progress.currentLevelId === level.id;
+    const blessed = (level.blessedShelves ?? []).length > 0;
     const container = this.add.container(x, y);
     const fill = unlocked ? 0x342538 : 0x17142d;
     const stroke = completed ? COLORS.complete : current ? COLORS.selected : COLORS.shelfGold;
@@ -193,6 +196,14 @@ export default class LevelSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     container.add([background, shine, levelText, statusText]);
+
+    if (blessed) {
+      const markerX = layout.cardWidth / 2 - (layout.isMobile ? 9 : 13);
+      const markerY = -layout.cardHeight / 2 + (layout.isMobile ? 9 : 13);
+      const markerGlow = this.add.circle(markerX, markerY, layout.isMobile ? 8 : 10, COLORS.blessed, unlocked ? 0.16 : 0.08);
+      const marker = this.add.star(markerX, markerY, 5, layout.isMobile ? 2.4 : 3, layout.isMobile ? 5.5 : 7, COLORS.blessedGold, unlocked ? 0.9 : 0.42);
+      container.add([markerGlow, marker]);
+    }
     container.setSize(layout.cardWidth, layout.cardHeight);
 
     if (unlocked) {

@@ -370,7 +370,7 @@ Suggests one valid move.
 
 ### Blessed Shelf
 
-A special glowing shelf that can hold any spirit temporarily or move matching groups together.
+A special glowing shelf that can receive any spirit type while it has space.
 
 ### Spirit Expressions
 
@@ -404,4 +404,3 @@ src/scenes/SpiritSortScene.js
 Build the full first playable in one scene first.
 
 Refactor into systems only after it works.
-

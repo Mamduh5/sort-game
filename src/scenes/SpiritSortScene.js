@@ -1,5 +1,14 @@
 import Phaser from "phaser";
 import { cloneLevel, SPIRIT_SORT_LEVELS } from "../data/spiritSortLevels.js";
+import {
+  getLevelCompletion,
+  getContinueLevelId,
+  isLevelUnlocked,
+  loadProgress,
+  markLevelComplete,
+  markLevelStarted,
+  setMuted
+} from "../systems/ProgressSave.js";
 import { loadSpiritTextureManifest } from "../systems/SpiritAssetLoader.js";
 import { applyMove, canMove, findHintMove, isShelfComplete, isSolved, undoMove } from "../systems/SortRules.js";
 
@@ -118,6 +127,14 @@ const SPIRIT_VISUALS = {
   selectedIdleFloat: 2.4
 };
 
+const SPIRIT_PERSONALITIES = {
+  fire: { float: 1.6, scalePulse: 1.018, rotation: 1.2, duration: 980, sparkle: 0xffc27a },
+  leaf: { float: 1.1, scalePulse: 1.01, rotation: 1.8, duration: 1700, sparkle: 0xbdf7a7 },
+  moon: { float: 1.8, scalePulse: 1.008, rotation: 0.6, duration: 2100, sparkle: 0xcdd4ff },
+  cloud: { float: 1.4, scalePulse: 1.014, rotation: 0.8, duration: 1550, sparkle: 0xe9f8ff },
+  star: { float: 1.2, scalePulse: 1.02, rotation: 1.4, duration: 1150, sparkle: 0xffef9b }
+};
+
 export default class SpiritSortScene extends Phaser.Scene {
   constructor() {
     super("SpiritSortScene");
@@ -128,16 +145,21 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.optionalSpiritAssetRequests = new Set();
   }
 
-  create() {
+  create(data = {}) {
     this.isSceneAlive = true;
-    this.currentLevelIndex = 0;
+    this.progress = loadProgress(SPIRIT_SORT_LEVELS);
+    const requestedLevelId = data.levelId ?? this.progress.currentLevelId;
+    const startLevelId = isLevelUnlocked(this.progress, requestedLevelId)
+      ? requestedLevelId
+      : getContinueLevelId(this.progress, SPIRIT_SORT_LEVELS);
+    this.currentLevelIndex = this.getLevelIndexFromId(startLevelId);
     this.selectedShelfIndex = null;
     this.isAnimating = false;
     this.hiddenSpirit = null;
     this.hasWon = false;
     this.moveHistory = [];
     this.moveCount = 0;
-    this.isMuted = false;
+    this.isMuted = this.progress.muted;
     this.shelfViews = [];
     this.boardLayout = null;
     this.hintEffects = [];
@@ -145,13 +167,15 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     this.loadOptionalSpiritAssetsFromManifest();
     this.createBackground();
-    this.loadLevel(0);
+    this.loadLevel(this.currentLevelIndex);
     this.createHud();
     this.redrawBoard();
     this.registerKeyboard();
     this.scale.on("resize", this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.isSceneAlive = false;
+      this.clearBoardTweens();
+      this.clearHintFeedback();
       this.scale.off("resize", this.handleResize, this);
     });
   }
@@ -162,6 +186,8 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     this.currentLevelIndex = nextIndex;
     this.currentLevel = level;
+    this.progress = markLevelStarted(this.progress, level.id, SPIRIT_SORT_LEVELS);
+    this.isMuted = this.progress.muted;
     this.capacity = level.capacity ?? 4;
     this.shelves = level.shelves;
     this.selectedShelfIndex = null;
@@ -177,6 +203,11 @@ export default class SpiritSortScene extends Phaser.Scene {
       this.winContainer.destroy(true);
       this.winContainer = null;
     }
+  }
+
+  getLevelIndexFromId(levelId) {
+    const levelIndex = SPIRIT_SORT_LEVELS.findIndex((level) => level.id === levelId);
+    return levelIndex >= 0 ? levelIndex : 0;
   }
 
   async loadOptionalSpiritAssetsFromManifest() {
@@ -358,8 +389,9 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.undoButton = this.createButton(hud.buttons.undo.x, hud.buttons.undo.y, hud.buttons.undo.width, hud.labels.undo, () => this.undoLastMove());
     this.hintButton = this.createButton(hud.buttons.hint.x, hud.buttons.hint.y, hud.buttons.hint.width, hud.labels.hint, () => this.showHint());
     this.muteButton = this.createButton(hud.buttons.mute.x, hud.buttons.mute.y, hud.buttons.mute.width, hud.labels.sound, () => this.toggleMute());
+    this.levelsButton = this.createButton(hud.buttons.levels.x, hud.buttons.levels.y, hud.buttons.levels.width, hud.labels.levels, () => this.openLevelSelect());
     this.nextButton = this.createButton(hud.buttons.next.x, hud.buttons.next.y, hud.buttons.next.width, hud.labels.next, () => this.goToLevel(this.currentLevelIndex + 1));
-    this.hudContainer.add([this.previousButton, this.restartButton, this.undoButton, this.hintButton, this.muteButton, this.nextButton]);
+    this.hudContainer.add([this.previousButton, this.restartButton, this.undoButton, this.hintButton, this.muteButton, this.levelsButton, this.nextButton]);
 
     this.updateHud();
   }
@@ -375,6 +407,7 @@ export default class SpiritSortScene extends Phaser.Scene {
         ["undo", 70],
         ["hint", 70],
         ["mute", 86],
+        ["levels", 82],
         ["next", 62]
       ];
       const buttons = this.layoutButtonRow(width - 24, 42, buttonSpecs, 8);
@@ -394,6 +427,7 @@ export default class SpiritSortScene extends Phaser.Scene {
           hint: "Hint",
           sound: "Sound",
           muted: "Muted",
+          levels: "Levels",
           next: "Next"
         },
         buttons
@@ -401,23 +435,25 @@ export default class SpiritSortScene extends Phaser.Scene {
     }
 
     const veryNarrow = width < 340;
-    const gap = veryNarrow ? 4 : MOBILE_LAYOUT.buttonGap;
+    const gap = veryNarrow ? 3 : 4;
     const buttonSpecs = veryNarrow
       ? [
-          ["prev", 38],
-          ["restart", 50],
-          ["undo", 44],
-          ["hint", 42],
-          ["mute", 50],
-          ["next", 38]
+          ["prev", 30],
+          ["restart", 42],
+          ["undo", 36],
+          ["hint", 36],
+          ["mute", 40],
+          ["levels", 42],
+          ["next", 30]
         ]
       : [
-          ["prev", 46],
-          ["restart", 58],
-          ["undo", 48],
-          ["hint", 46],
-          ["mute", 56],
-          ["next", 46]
+          ["prev", 40],
+          ["restart", 52],
+          ["undo", 42],
+          ["hint", 40],
+          ["mute", 48],
+          ["levels", 48],
+          ["next", 40]
         ];
     const buttons = this.layoutButtonRow(width / 2, veryNarrow ? 60 : 64, buttonSpecs, gap, true);
 
@@ -436,6 +472,7 @@ export default class SpiritSortScene extends Phaser.Scene {
         hint: "Hint",
         sound: "Sound",
         muted: "Mute",
+        levels: veryNarrow ? "Map" : "Levels",
         next: veryNarrow ? ">" : "Next"
       },
       buttons
@@ -497,6 +534,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-BACKSPACE", () => this.undoLastMove());
     this.input.keyboard.on("keydown-H", () => this.showHint());
     this.input.keyboard.on("keydown-M", () => this.toggleMute());
+    this.input.keyboard.on("keydown-L", () => this.openLevelSelect());
   }
 
   updateHud() {
@@ -516,7 +554,8 @@ export default class SpiritSortScene extends Phaser.Scene {
     }
 
     this.previousButton.setAlpha(this.currentLevelIndex === 0 ? 0.45 : 1);
-    this.nextButton.setAlpha(this.currentLevelIndex === SPIRIT_SORT_LEVELS.length - 1 ? 0.45 : 1);
+    const nextLevel = SPIRIT_SORT_LEVELS[this.currentLevelIndex + 1];
+    this.nextButton.setAlpha(!nextLevel || !isLevelUnlocked(this.progress, nextLevel.id) ? 0.45 : 1);
     this.undoButton.setAlpha(this.canUndo() ? 1 : 0.45);
     this.hintButton.setAlpha(this.canUseHint() ? 1 : 0.45);
     this.muteButton.buttonText.setText(this.isMuted ? hud.labels.muted : hud.labels.sound);
@@ -536,11 +575,24 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     const nextIndex = Phaser.Math.Clamp(levelIndex, 0, SPIRIT_SORT_LEVELS.length - 1);
     if (nextIndex === this.currentLevelIndex) return;
+    const nextLevel = SPIRIT_SORT_LEVELS[nextIndex];
+    if (!isLevelUnlocked(this.progress, nextLevel.id)) {
+      this.playSound("invalid");
+      this.playHudPulse();
+      return;
+    }
 
     this.playSound("button");
     this.loadLevel(nextIndex);
     this.updateHud();
     this.redrawBoard();
+  }
+
+  openLevelSelect() {
+    if (this.isAnimating) return;
+
+    this.playSound("button");
+    this.scene.start("LevelSelectScene");
   }
 
   canUndo() {
@@ -591,6 +643,7 @@ export default class SpiritSortScene extends Phaser.Scene {
 
   toggleMute() {
     this.isMuted = !this.isMuted;
+    this.progress = setMuted(this.progress, this.isMuted, SPIRIT_SORT_LEVELS);
     this.updateHud();
 
     if (!this.isMuted) {
@@ -855,7 +908,7 @@ export default class SpiritSortScene extends Phaser.Scene {
         spirit.setScale(spirit.scaleX * SPIRIT_VISUALS.selectedScale, spirit.scaleY * SPIRIT_VISUALS.selectedScale);
       }
 
-      this.applySpiritIdleAnimation(spirit, index, stackIndex, isSelectedTop);
+      this.applySpiritIdleAnimation(spirit, index, stackIndex, isSelectedTop, spiritType);
       spiritViews[stackIndex] = spirit;
       container.add(spirit);
     });
@@ -969,21 +1022,23 @@ export default class SpiritSortScene extends Phaser.Scene {
     return this.add.ellipse(-size * 0.14, -size * 0.28, size * 0.62, size * 0.3, 0xffe8b2, 0.1);
   }
 
-  applySpiritIdleAnimation(spirit, shelfIndex, stackIndex, isSelectedTop = false) {
+  applySpiritIdleAnimation(spirit, shelfIndex, stackIndex, isSelectedTop = false, spiritType = "fire") {
     if (!spirit) return;
 
+    const personality = SPIRIT_PERSONALITIES[spiritType] ?? SPIRIT_PERSONALITIES.fire;
     const baseY = spirit.y;
     const baseScaleX = spirit.scaleX;
     const baseScaleY = spirit.scaleY;
-    const floatAmount = isSelectedTop ? SPIRIT_VISUALS.selectedIdleFloat : SPIRIT_VISUALS.idleFloat;
-    const scalePulse = isSelectedTop ? 1.025 : 1.012;
-    const duration = 1500 + ((shelfIndex * 97 + stackIndex * 53) % 360);
+    const floatAmount = isSelectedTop ? SPIRIT_VISUALS.selectedIdleFloat + personality.float * 0.35 : personality.float;
+    const scalePulse = isSelectedTop ? 1.028 : personality.scalePulse;
+    const duration = personality.duration + ((shelfIndex * 97 + stackIndex * 53) % 280);
 
     this.tweens.add({
       targets: spirit,
       y: baseY - floatAmount,
       scaleX: baseScaleX * scalePulse,
-      scaleY: baseScaleY * (isSelectedTop ? 1.025 : 1.012),
+      scaleY: baseScaleY * (isSelectedTop ? 1.026 : personality.scalePulse),
+      angle: (stackIndex % 2 === 0 ? personality.rotation : -personality.rotation) * (isSelectedTop ? 1.35 : 1),
       duration,
       delay: (shelfIndex * 80 + stackIndex * 120) % 420,
       yoyo: true,
@@ -1100,6 +1155,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     if (!canMove(this.shelves, sourceIndex, targetIndex, this.capacity)) {
       this.selectedShelfIndex = null;
       this.redrawBoard();
+      this.playSpiritRefusalFeedback(sourceIndex);
       this.playSound("invalid");
       this.playInvalidMoveFeedback(targetIndex);
       return;
@@ -1230,8 +1286,10 @@ export default class SpiritSortScene extends Phaser.Scene {
           if (!landedSpirit.active) return;
 
           landedSpirit.y = baseY;
+          landedSpirit.setAngle(0);
           landedSpirit.setScale(baseScaleX, baseScaleY);
-          this.applySpiritIdleAnimation(landedSpirit, shelfIndex, stackIndex, false);
+          const spiritType = this.shelves[shelfIndex]?.[stackIndex] ?? "fire";
+          this.applySpiritIdleAnimation(landedSpirit, shelfIndex, stackIndex, false, spiritType);
         }
       });
     }
@@ -1387,6 +1445,63 @@ export default class SpiritSortScene extends Phaser.Scene {
     });
   }
 
+  playSpiritRefusalFeedback(shelfIndex) {
+    const view = this.shelfViews[shelfIndex];
+    const shelf = this.shelves[shelfIndex];
+    if (!view || !shelf?.length) return;
+
+    const stackIndex = shelf.length - 1;
+    const spirit = view.spiritViews?.[stackIndex];
+    const spiritType = shelf[stackIndex];
+    const personality = SPIRIT_PERSONALITIES[spiritType] ?? SPIRIT_PERSONALITIES.fire;
+    const layout = this.getCurrentLayout();
+
+    if (spirit) {
+      this.tweens.killTweensOf(spirit);
+      const baseX = spirit.x;
+      const baseScaleX = spirit.scaleX;
+      const baseScaleY = spirit.scaleY;
+
+      this.tweens.add({
+        targets: spirit,
+        x: baseX + (layout.isMobile ? 4 : 6),
+        scaleX: baseScaleX * 0.97,
+        scaleY: baseScaleY * 1.03,
+        duration: 48,
+        repeat: 3,
+        yoyo: true,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          if (!spirit.active) return;
+          spirit.x = baseX;
+          spirit.setScale(baseScaleX, baseScaleY);
+        }
+      });
+    }
+
+    const markerPosition = this.getSpiritWorldPosition(shelfIndex, stackIndex);
+    const marker = this.add
+      .text(markerPosition.x, markerPosition.y - layout.spiritSize * 0.78, "?", {
+        fontFamily: "Arial",
+        fontSize: `${layout.isMobile ? 14 : 17}px`,
+        color: "#fff0b8",
+        fontStyle: "bold"
+      })
+      .setOrigin(0.5)
+      .setDepth(38);
+    marker.setShadow(0, 1, "#050511", 3);
+
+    this.tweens.add({
+      targets: marker,
+      y: marker.y - 12,
+      alpha: 0,
+      scale: 1.2,
+      duration: 420 + personality.duration * 0.04,
+      ease: "Sine.easeOut",
+      onComplete: () => marker.destroy()
+    });
+  }
+
   createSparkles(x, y, count = 7) {
     for (let i = 0; i < count; i += 1) {
       const sparkle = this.add.circle(x, y, 3, 0xfff0b6, 0.9).setDepth(36);
@@ -1406,16 +1521,70 @@ export default class SpiritSortScene extends Phaser.Scene {
     }
   }
 
+  playLevelCompleteCelebration() {
+    const layout = this.getCurrentLayout();
+
+    this.shelfViews.forEach((view, shelfIndex) => {
+      const shelf = this.shelves[shelfIndex];
+      if (!view || !isShelfComplete(shelf, this.capacity)) return;
+
+      const spiritType = shelf[0];
+      const personality = SPIRIT_PERSONALITIES[spiritType] ?? SPIRIT_PERSONALITIES.fire;
+
+      this.tweens.add({
+        targets: view.container,
+        y: view.position.y - (layout.isMobile ? 4 : 6),
+        scaleX: 1.012,
+        scaleY: 1.012,
+        duration: 180 + shelfIndex * 22,
+        yoyo: true,
+        ease: "Sine.easeOut"
+      });
+
+      for (let i = 0; i < 3; i += 1) {
+        const sparkle = this.add
+          .circle(
+            view.position.x + (i - 1) * layout.shelfWidth * 0.24,
+            view.position.y + 26 + (i % 2) * 14,
+            layout.isMobile ? 2.5 : 3.5,
+            personality.sparkle,
+            0.82
+          )
+          .setDepth(39);
+
+        this.tweens.add({
+          targets: sparkle,
+          y: sparkle.y - 18,
+          alpha: 0,
+          scale: 1.5,
+          duration: 620 + i * 80,
+          ease: "Sine.easeOut",
+          onComplete: () => sparkle.destroy()
+        });
+      }
+    });
+  }
+
   checkWin() {
     if (!isSolved(this.shelves, this.capacity)) return;
 
     this.hasWon = true;
+    const previousCompletion = getLevelCompletion(this.progress, this.currentLevel.id);
+    const previousBest = previousCompletion?.bestMoves;
+    this.progress = markLevelComplete(this.progress, this.currentLevel.id, this.moveCount, SPIRIT_SORT_LEVELS);
+    const nextCompletion = getLevelCompletion(this.progress, this.currentLevel.id);
+    this.winResult = {
+      bestMoves: nextCompletion?.bestMoves ?? this.moveCount,
+      isNewBest: !Number.isFinite(previousBest) || this.moveCount < previousBest
+    };
     this.playSound("win");
+    this.playLevelCompleteCelebration();
     this.showWinMessage();
   }
 
   clearWinState() {
     this.hasWon = false;
+    this.winResult = null;
 
     if (this.winContainer) {
       this.winContainer.destroy(true);
@@ -1431,11 +1600,11 @@ export default class SpiritSortScene extends Phaser.Scene {
     const width = this.scale.width;
     const hud = this.getHudLayout();
     const panelWidth = Math.min(500, width - 24);
-    const panelHeight = width < 420 ? 178 : 154;
+    const panelHeight = width < 420 ? 224 : 194;
     const panelY = hud.bandHeight + panelHeight / 2 + 14;
-    const titleFontSize = width < 420 ? 23 : 28;
+    const titleFontSize = width < 420 ? 22 : 28;
     const detailFontSize = width < 420 ? 13 : 16;
-    const buttonY = width < 420 ? 58 : 50;
+    const buttonY = width < 420 ? 78 : 68;
 
     this.winContainer = this.add.container(width / 2, panelY).setDepth(50);
 
@@ -1452,7 +1621,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       .setOrigin(0.5);
     const isLastLevel = this.currentLevelIndex === SPIRIT_SORT_LEVELS.length - 1;
     const detail = this.add
-      .text(0, -18, isLastLevel ? "All 12 shrine levels are restored." : "Shrine restored. Next level is ready.", {
+      .text(0, width < 420 ? -42 : -36, isLastLevel ? "All shrine levels are restored." : "Shrine restored. Next level is ready.", {
         fontFamily: "Arial",
         fontSize: `${detailFontSize}px`,
         color: "#bfeadf",
@@ -1461,24 +1630,35 @@ export default class SpiritSortScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     const moveSummary = this.add
-      .text(0, 16, `Completed in ${this.moveCount} moves`, {
+      .text(0, width < 420 ? -8 : -4, `Completed in ${this.moveCount} moves`, {
         fontFamily: "Arial",
         fontSize: `${detailFontSize}px`,
         color: COLORS.text,
         fontStyle: "bold"
       })
       .setOrigin(0.5);
-    const restartButton = this.createWinButton(-Math.min(74, panelWidth * 0.19), buttonY, Math.min(124, panelWidth * 0.38), "Restart", () => this.restartLevel());
-    const nextButton = this.createWinButton(
-      Math.min(78, panelWidth * 0.2),
-      buttonY,
-      Math.min(132, panelWidth * 0.4),
-      isLastLevel ? "All Done" : "Next Level",
-      () => this.goToLevel(this.currentLevelIndex + 1)
-    );
-    nextButton.setAlpha(isLastLevel ? 0.45 : 1);
+    const bestSummary = this.add
+      .text(0, width < 420 ? 20 : 24, this.getBestMoveSummary(), {
+        fontFamily: "Arial",
+        fontSize: `${detailFontSize}px`,
+        color: this.winResult?.isNewBest ? "#ffe7a8" : "#bfeadf",
+        fontStyle: "bold"
+      })
+      .setOrigin(0.5);
 
-    this.winContainer.add([panel, title, detail, moveSummary, restartButton, nextButton]);
+    const buttons = isLastLevel
+      ? [
+          this.createWinButton(-Math.min(112, panelWidth * 0.28), buttonY, Math.min(104, panelWidth * 0.28), "Replay", () => this.restartLevel()),
+          this.createWinButton(0, buttonY, Math.min(116, panelWidth * 0.32), "Levels", () => this.openLevelSelect()),
+          this.createWinButton(Math.min(112, panelWidth * 0.28), buttonY, Math.min(104, panelWidth * 0.28), "Title", () => this.scene.start("TitleScene"))
+        ]
+      : [
+          this.createWinButton(-Math.min(116, panelWidth * 0.29), buttonY, Math.min(104, panelWidth * 0.28), "Restart", () => this.restartLevel()),
+          this.createWinButton(0, buttonY, Math.min(116, panelWidth * 0.32), "Levels", () => this.openLevelSelect()),
+          this.createWinButton(Math.min(116, panelWidth * 0.29), buttonY, Math.min(118, panelWidth * 0.32), "Next", () => this.goToLevel(this.currentLevelIndex + 1))
+        ];
+
+    this.winContainer.add([panel, title, detail, moveSummary, bestSummary, ...buttons]);
     this.tweens.add({
       targets: this.winContainer,
       scale: {
@@ -1488,6 +1668,13 @@ export default class SpiritSortScene extends Phaser.Scene {
       duration: 160,
       ease: "Back.easeOut"
     });
+  }
+
+  getBestMoveSummary() {
+    if (!this.winResult) return `Best: ${this.moveCount} moves`;
+    return this.winResult.isNewBest
+      ? `New best: ${this.winResult.bestMoves} moves`
+      : `Best: ${this.winResult.bestMoves} moves`;
   }
 
   createWinButton(x, y, width, label, onClick) {

@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { SPIRIT_SORT_LEVELS } from "../data/spiritSortLevels.js";
+import { getContinueLevelId, loadProgress, markLevelStarted } from "../systems/ProgressSave.js";
 import { loadSpiritTextureManifest } from "../systems/SpiritAssetLoader.js";
 
 const COLORS = {
@@ -33,6 +35,7 @@ export default class TitleScene extends Phaser.Scene {
     this.isSceneAlive = true;
     this.hasStarted = false;
     this.titleContainer = null;
+    this.progress = loadProgress(SPIRIT_SORT_LEVELS);
     this.optionalSpiritTextureKeys = new Set();
     this.optionalSpiritAssetRequests = new Set();
     this.createTitleScreen();
@@ -83,7 +86,7 @@ export default class TitleScene extends Phaser.Scene {
     this.createBackground(width, height);
     this.createSpiritPreviewRow(width, height, layout);
     this.createTitleCopy(width, layout);
-    this.createStartButton(width, layout);
+    this.createTitleButtons(width, layout);
     this.createFooter(width, height, layout);
   }
 
@@ -103,9 +106,10 @@ export default class TitleScene extends Phaser.Scene {
         spiritsY: Math.max(238, height * 0.42),
         spiritSize: Phaser.Math.Clamp(width * 0.11, 34, 44),
         buttonY: Math.min(height - 148, Math.max(338, height * 0.64)),
-        buttonWidth: Phaser.Math.Clamp(safeWidth * 0.44, 150, 178),
-        buttonHeight: 48,
-        buttonFontSize: 20,
+        buttonWidth: Phaser.Math.Clamp(safeWidth * 0.42, 132, 166),
+        buttonHeight: 44,
+        buttonGap: 10,
+        buttonFontSize: 17,
         footerY: height - 32
       };
     }
@@ -121,9 +125,10 @@ export default class TitleScene extends Phaser.Scene {
       spiritsY: height * 0.55,
       spiritSize: 52,
       buttonY: height * 0.72,
-      buttonWidth: 190,
-      buttonHeight: 54,
-      buttonFontSize: 22,
+      buttonWidth: 178,
+      buttonHeight: 52,
+      buttonGap: 14,
+      buttonFontSize: 20,
       footerY: height - 34
     };
   }
@@ -354,16 +359,39 @@ export default class TitleScene extends Phaser.Scene {
     return [];
   }
 
-  createStartButton(width, layout) {
-    const button = this.add.container(width / 2, layout.buttonY);
+  createTitleButtons(width, layout) {
+    const totalWidth = layout.buttonWidth * 2 + layout.buttonGap;
+    const continueButton = this.createTitleButton(
+      width / 2 - totalWidth / 2 + layout.buttonWidth / 2,
+      layout.buttonY,
+      layout.buttonWidth,
+      "Continue",
+      () => this.startGame(),
+      layout
+    );
+    const levelSelectButton = this.createTitleButton(
+      width / 2 + totalWidth / 2 - layout.buttonWidth / 2,
+      layout.buttonY,
+      layout.buttonWidth,
+      "Levels",
+      () => this.openLevelSelect(),
+      layout,
+      true
+    );
+
+    this.titleContainer.add([continueButton, levelSelectButton]);
+  }
+
+  createTitleButton(x, y, width, label, onClick, layout, secondary = false) {
+    const button = this.add.container(x, y);
     const background = this.add
-      .rectangle(0, 0, layout.buttonWidth, layout.buttonHeight, 0x342538, 0.96)
-      .setStrokeStyle(2, COLORS.shelfGold, 0.86);
-    const shine = this.add.rectangle(0, -layout.buttonHeight * 0.34, layout.buttonWidth - 18, 5, 0xffe2a5, 0.18);
-    const leftCap = this.add.rectangle(-layout.buttonWidth / 2 + 8, 0, 5, layout.buttonHeight - 13, COLORS.shelfWoodLight, 0.75);
-    const rightCap = this.add.rectangle(layout.buttonWidth / 2 - 8, 0, 5, layout.buttonHeight - 13, COLORS.shelfWoodLight, 0.75);
+      .rectangle(0, 0, width, layout.buttonHeight, secondary ? 0x211c37 : 0x342538, 0.96)
+      .setStrokeStyle(2, COLORS.shelfGold, secondary ? 0.62 : 0.86);
+    const shine = this.add.rectangle(0, -layout.buttonHeight * 0.34, width - 18, 5, 0xffe2a5, 0.18);
+    const leftCap = this.add.rectangle(-width / 2 + 8, 0, 5, layout.buttonHeight - 13, COLORS.shelfWoodLight, 0.75);
+    const rightCap = this.add.rectangle(width / 2 - 8, 0, 5, layout.buttonHeight - 13, COLORS.shelfWoodLight, 0.75);
     const text = this.add
-      .text(0, 0, "Start", {
+      .text(0, 0, label, {
         fontFamily: "Arial",
         fontSize: `${layout.buttonFontSize}px`,
         color: COLORS.text,
@@ -372,11 +400,11 @@ export default class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     button.add([background, shine, leftCap, rightCap, text]);
-    button.setSize(layout.buttonWidth, layout.buttonHeight);
+    button.setSize(width, layout.buttonHeight);
     button.setInteractive({ useHandCursor: true });
-    button.on("pointerdown", () => this.startGame());
+    button.on("pointerdown", onClick);
     button.on("pointerover", () => background.setFillStyle(0x4b3b68, 0.98));
-    button.on("pointerout", () => background.setFillStyle(0x342538, 0.96));
+    button.on("pointerout", () => background.setFillStyle(secondary ? 0x211c37 : 0x342538, 0.96));
 
     this.tweens.add({
       targets: button,
@@ -388,7 +416,7 @@ export default class TitleScene extends Phaser.Scene {
       ease: "Sine.easeInOut"
     });
 
-    this.titleContainer.add(button);
+    return button;
   }
 
   createFooter(width, height, layout) {
@@ -408,10 +436,23 @@ export default class TitleScene extends Phaser.Scene {
     if (this.hasStarted) return;
 
     this.hasStarted = true;
+    const levelId = getContinueLevelId(this.progress, SPIRIT_SORT_LEVELS);
+    this.progress = markLevelStarted(this.progress, levelId, SPIRIT_SORT_LEVELS);
     this.playButtonTone();
     this.cameras.main.fadeOut(180, 10, 8, 24);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      this.scene.start("SpiritSortScene");
+      this.scene.start("SpiritSortScene", { levelId });
+    });
+  }
+
+  openLevelSelect() {
+    if (this.hasStarted) return;
+
+    this.hasStarted = true;
+    this.playButtonTone();
+    this.cameras.main.fadeOut(160, 10, 8, 24);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.scene.start("LevelSelectScene");
     });
   }
 

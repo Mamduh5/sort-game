@@ -1,3 +1,5 @@
+export const SPIRIT_SORT_SPIRIT_IDS = ["fire", "leaf", "moon", "cloud", "star"];
+
 export const SPIRIT_SORT_LEVELS = [
   {
     id: 1,
@@ -148,6 +150,171 @@ export const SPIRIT_SORT_LEVELS = [
       ["cloud", "moon", "fire", "cloud"],
       ["cloud", "leaf", "moon", "star"],
       ["fire", "fire", "leaf", "leaf"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 13,
+    name: "Lantern Drift",
+    capacity: 4,
+    shelves: [
+      ["leaf", "moon", "fire", "cloud"],
+      ["cloud", "fire", "moon", "leaf"],
+      ["fire", "cloud", "moon", "leaf"],
+      ["cloud", "fire", "leaf", "moon"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 14,
+    name: "Moss Moon",
+    capacity: 4,
+    shelves: [
+      ["leaf", "moon", "leaf", "fire"],
+      ["cloud", "cloud", "moon", "moon"],
+      ["fire", "moon", "fire", "cloud"],
+      ["leaf", "leaf", "fire", "cloud"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 15,
+    name: "Cloudbell Steps",
+    capacity: 4,
+    shelves: [
+      ["moon", "fire", "cloud", "fire"],
+      ["leaf", "leaf", "fire", "fire"],
+      ["cloud", "moon", "moon", "leaf"],
+      ["leaf", "cloud", "moon", "cloud"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 16,
+    name: "Starry Offering",
+    capacity: 4,
+    shelves: [
+      ["fire", "fire", "star", "star"],
+      ["leaf", "cloud", "fire", "leaf"],
+      ["moon", "moon", "moon", "cloud"],
+      ["cloud", "moon", "star", "fire"],
+      ["leaf", "star", "leaf", "cloud"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 17,
+    name: "Firefly Crossing",
+    capacity: 4,
+    shelves: [
+      ["star", "leaf", "cloud", "cloud"],
+      ["cloud", "fire", "star", "leaf"],
+      ["leaf", "moon", "star", "moon"],
+      ["moon", "fire", "leaf", "fire"],
+      ["star", "moon", "fire", "cloud"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 18,
+    name: "Moon Sprout Path",
+    capacity: 4,
+    shelves: [
+      ["cloud", "fire", "fire", "moon"],
+      ["fire", "moon", "leaf", "cloud"],
+      ["star", "leaf", "star", "moon"],
+      ["star", "cloud", "star", "leaf"],
+      ["fire", "leaf", "cloud", "moon"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 19,
+    name: "Cloud Hearth",
+    capacity: 4,
+    shelves: [
+      ["cloud", "moon", "star", "fire"],
+      ["cloud", "cloud", "fire", "leaf"],
+      ["star", "moon", "star", "moon"],
+      ["leaf", "star", "leaf", "fire"],
+      ["fire", "moon", "leaf", "cloud"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 20,
+    name: "Star Nesting",
+    capacity: 4,
+    shelves: [
+      ["star", "moon", "moon", "leaf"],
+      ["leaf", "moon", "star", "cloud"],
+      ["leaf", "cloud", "cloud", "fire"],
+      ["star", "cloud", "leaf", "fire"],
+      ["star", "fire", "fire", "moon"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 21,
+    name: "Quiet Ember Rows",
+    capacity: 4,
+    shelves: [
+      ["star", "moon", "fire", "star"],
+      ["leaf", "leaf", "moon", "moon"],
+      ["fire", "fire", "cloud", "fire"],
+      ["star", "moon", "cloud", "leaf"],
+      ["leaf", "star", "cloud", "cloud"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 22,
+    name: "Forest Sky Shelf",
+    capacity: 4,
+    shelves: [
+      ["star", "leaf", "fire", "moon"],
+      ["leaf", "star", "star", "cloud"],
+      ["fire", "cloud", "cloud", "star"],
+      ["moon", "moon", "fire", "leaf"],
+      ["moon", "cloud", "leaf", "fire"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 23,
+    name: "Shrine Twilight",
+    capacity: 4,
+    shelves: [
+      ["leaf", "star", "star", "cloud"],
+      ["leaf", "cloud", "fire", "moon"],
+      ["cloud", "fire", "star", "moon"],
+      ["leaf", "leaf", "cloud", "star"],
+      ["fire", "moon", "fire", "moon"],
+      [],
+      []
+    ]
+  },
+  {
+    id: 24,
+    name: "Last Lantern Rite",
+    capacity: 4,
+    shelves: [
+      ["star", "fire", "leaf", "moon"],
+      ["cloud", "star", "cloud", "cloud"],
+      ["moon", "leaf", "moon", "fire"],
+      ["leaf", "leaf", "star", "cloud"],
+      ["fire", "moon", "star", "fire"],
       [],
       []
     ]

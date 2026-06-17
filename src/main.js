@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import "./styles.css";
+import LevelSelectScene from "./scenes/LevelSelectScene.js";
 import TitleScene from "./scenes/TitleScene.js";
 import SpiritSortScene from "./scenes/SpiritSortScene.js";
 
@@ -13,7 +14,7 @@ const config = {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH
   },
-  scene: [TitleScene, SpiritSortScene]
+  scene: [TitleScene, LevelSelectScene, SpiritSortScene]
 };
 
 new Phaser.Game(config);

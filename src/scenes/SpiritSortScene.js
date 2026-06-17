@@ -99,6 +99,20 @@ const BASE_LAYOUT = {
   hudHeight: 118
 };
 
+const MOBILE_LAYOUT = {
+  hudHeight: 102,
+  buttonHeight: 32,
+  buttonGap: 6,
+  minShelfWidth: 68,
+  maxShelfWidth: 82,
+  minShelfHeight: 176,
+  maxShelfHeight: 220,
+  rowGapMin: 16,
+  rowGapMax: 26,
+  topClearance: 18,
+  bottomMargin: 18
+};
+
 const SPIRIT_VISUALS = {
   imageFitRatio: 1.08,
   rimScale: 1.06,
@@ -387,12 +401,14 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.moveText.setShadow(0, 1, "#050511", 3);
     this.hudContainer.add(this.moveText);
 
-    this.previousButton = this.createButton(hud.buttons.prev.x, hud.buttons.prev.y, hud.buttons.prev.width, "Prev", () => this.goToLevel(this.currentLevelIndex - 1));
-    this.restartButton = this.createButton(hud.buttons.restart.x, hud.buttons.restart.y, hud.buttons.restart.width, "Restart", () => this.restartLevel());
-    this.undoButton = this.createButton(hud.buttons.undo.x, hud.buttons.undo.y, hud.buttons.undo.width, "Undo", () => this.undoLastMove());
-    this.hintButton = this.createButton(hud.buttons.hint.x, hud.buttons.hint.y, hud.buttons.hint.width, "Hint", () => this.showHint());
-    this.muteButton = this.createButton(hud.buttons.mute.x, hud.buttons.mute.y, hud.buttons.mute.width, "Sound", () => this.toggleMute());
-    this.nextButton = this.createButton(hud.buttons.next.x, hud.buttons.next.y, hud.buttons.next.width, "Next", () => this.goToLevel(this.currentLevelIndex + 1));
+    this.moveText.setVisible(!hud.moves.hidden);
+
+    this.previousButton = this.createButton(hud.buttons.prev.x, hud.buttons.prev.y, hud.buttons.prev.width, hud.labels.prev, () => this.goToLevel(this.currentLevelIndex - 1));
+    this.restartButton = this.createButton(hud.buttons.restart.x, hud.buttons.restart.y, hud.buttons.restart.width, hud.labels.restart, () => this.restartLevel());
+    this.undoButton = this.createButton(hud.buttons.undo.x, hud.buttons.undo.y, hud.buttons.undo.width, hud.labels.undo, () => this.undoLastMove());
+    this.hintButton = this.createButton(hud.buttons.hint.x, hud.buttons.hint.y, hud.buttons.hint.width, hud.labels.hint, () => this.showHint());
+    this.muteButton = this.createButton(hud.buttons.mute.x, hud.buttons.mute.y, hud.buttons.mute.width, hud.labels.sound, () => this.toggleMute());
+    this.nextButton = this.createButton(hud.buttons.next.x, hud.buttons.next.y, hud.buttons.next.width, hud.labels.next, () => this.goToLevel(this.currentLevelIndex + 1));
     this.hudContainer.add([this.previousButton, this.restartButton, this.undoButton, this.hintButton, this.muteButton, this.nextButton]);
 
     this.updateHud();
@@ -420,30 +436,58 @@ export default class SpiritSortScene extends Phaser.Scene {
         moves: { x: 50, y: 106, fontSize: 15, originX: 0 },
         buttonHeight: 38,
         buttonFontSize: 16,
+        labels: {
+          prev: "Prev",
+          restart: "Restart",
+          undo: "Undo",
+          hint: "Hint",
+          sound: "Sound",
+          muted: "Muted",
+          next: "Next"
+        },
         buttons
       };
     }
 
-    const gap = width < 360 ? 6 : 8;
-    const firstRow = this.layoutButtonRow(width / 2, 114, [
-      ["prev", width < 360 ? 58 : 62],
-      ["restart", width < 360 ? 78 : 84],
-      ["undo", width < 360 ? 62 : 68]
-    ], gap, true);
-    const secondRow = this.layoutButtonRow(width / 2, 160, [
-      ["hint", width < 360 ? 58 : 64],
-      ["mute", width < 360 ? 78 : 86],
-      ["next", width < 360 ? 58 : 62]
-    ], gap, true);
+    const veryNarrow = width < 340;
+    const gap = veryNarrow ? 4 : MOBILE_LAYOUT.buttonGap;
+    const buttonSpecs = veryNarrow
+      ? [
+          ["prev", 38],
+          ["restart", 50],
+          ["undo", 44],
+          ["hint", 42],
+          ["mute", 50],
+          ["next", 38]
+        ]
+      : [
+          ["prev", 46],
+          ["restart", 58],
+          ["undo", 48],
+          ["hint", 46],
+          ["mute", 56],
+          ["next", 46]
+        ];
+    const buttons = this.layoutButtonRow(width / 2, veryNarrow ? 76 : 80, buttonSpecs, gap, true);
 
     return {
-      bandHeight: 190,
-      title: { x: width / 2, y: 26, fontSize: width < 360 ? 22 : 24, originX: 0.5 },
-      level: { x: width / 2, y: 58, fontSize: width < 360 ? 13 : 14, originX: 0.5, wrapWidth: width - 24 },
-      moves: { x: width / 2, y: 82, fontSize: width < 360 ? 13 : 14, originX: 0.5 },
-      buttonHeight: 42,
-      buttonFontSize: width < 360 ? 13 : 14,
-      buttons: { ...firstRow, ...secondRow }
+      bandHeight: veryNarrow ? 96 : MOBILE_LAYOUT.hudHeight,
+      compactInfo: true,
+      title: { x: width / 2, y: veryNarrow ? 20 : 22, fontSize: veryNarrow ? 18 : 20, originX: 0.5 },
+      level: { x: width / 2, y: veryNarrow ? 45 : 48, fontSize: veryNarrow ? 12 : 13, originX: 0.5, wrapWidth: width - 20 },
+      moves: { x: width / 2, y: 0, fontSize: 1, originX: 0.5, hidden: true },
+      buttonHeight: veryNarrow ? 30 : MOBILE_LAYOUT.buttonHeight,
+      buttonFontSize: veryNarrow ? 11 : 12,
+      labels: {
+        prev: veryNarrow ? "<" : "Prev",
+        restart: "Reset",
+        undo: "Undo",
+        hint: "Hint",
+        sound: "Sound",
+        muted: "Mute",
+        next: veryNarrow ? ">" : "Next"
+      },
+      buttons
     };
   }
 
@@ -505,16 +549,25 @@ export default class SpiritSortScene extends Phaser.Scene {
   }
 
   updateHud() {
-    this.levelText.setText(
-      `Level ${this.currentLevelIndex + 1} / ${SPIRIT_SORT_LEVELS.length}: ${this.currentLevel.name}`
-    );
-    this.moveText.setText(`Moves: ${this.moveCount}`);
+    const hud = this.getHudLayout();
+
+    if (hud.compactInfo) {
+      this.levelText.setText(`Level ${this.currentLevelIndex + 1} / ${SPIRIT_SORT_LEVELS.length} | Moves: ${this.moveCount}`);
+      this.moveText.setText("");
+      this.moveText.setVisible(false);
+    } else {
+      this.levelText.setText(
+        `Level ${this.currentLevelIndex + 1} / ${SPIRIT_SORT_LEVELS.length}: ${this.currentLevel.name}`
+      );
+      this.moveText.setText(`Moves: ${this.moveCount}`);
+      this.moveText.setVisible(true);
+    }
 
     this.previousButton.setAlpha(this.currentLevelIndex === 0 ? 0.45 : 1);
     this.nextButton.setAlpha(this.currentLevelIndex === SPIRIT_SORT_LEVELS.length - 1 ? 0.45 : 1);
     this.undoButton.setAlpha(this.canUndo() ? 1 : 0.45);
     this.hintButton.setAlpha(this.canUseHint() ? 1 : 0.45);
-    this.muteButton.buttonText.setText(this.isMuted ? "Muted" : "Sound");
+    this.muteButton.buttonText.setText(this.isMuted ? hud.labels.muted : hud.labels.sound);
   }
 
   restartLevel() {
@@ -618,18 +671,21 @@ export default class SpiritSortScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
     const shelfCount = this.shelves.length;
-    const margin = Phaser.Math.Clamp(width * 0.045, 12, 44);
     const isNarrow = width < 700;
-    const columns = isNarrow ? Math.min(shelfCount, shelfCount > 6 ? 4 : 3) : shelfCount;
-    const rows = Math.ceil(shelfCount / columns);
-    const gap = Phaser.Math.Clamp(isNarrow ? width * 0.03 : BASE_LAYOUT.shelfGap, 10, BASE_LAYOUT.shelfGap);
-    const rowGap = rows > 1 ? Phaser.Math.Clamp(height * 0.035, 18, 34) : 0;
+
+    if (isNarrow) {
+      return this.getMobileBoardLayout(width, height, shelfCount);
+    }
+
+    const margin = Phaser.Math.Clamp(width * 0.045, 12, 44);
+    const columns = shelfCount;
+    const rows = 1;
+    const rowPattern = [shelfCount];
+    const gap = BASE_LAYOUT.shelfGap;
+    const rowGap = 0;
     const hudHeight = this.getHudLayout().bandHeight;
     const availableWidth = Math.max(280, width - margin * 2);
-    const topClearance = isNarrow
-      ? Phaser.Math.Clamp(height * 0.07, 34, 54)
-      : Phaser.Math.Clamp(height * 0.035, 16, 38);
-    const boardTop = hudHeight + topClearance;
+    const boardTop = hudHeight + Phaser.Math.Clamp(height * 0.035, 16, 38);
     const availableHeight = Math.max(220, height - boardTop - 40);
     const shelfWidth = Phaser.Math.Clamp(
       (availableWidth - gap * (columns - 1)) / columns,
@@ -638,25 +694,91 @@ export default class SpiritSortScene extends Phaser.Scene {
     );
     const shelfHeight = Phaser.Math.Clamp(
       (availableHeight - (rows - 1) * (rowGap + 28)) / rows,
-      isNarrow ? 118 : 154,
+      154,
       BASE_LAYOUT.shelfHeight
     );
     const scale = shelfHeight / BASE_LAYOUT.shelfHeight;
-    const spiritSize = Phaser.Math.Clamp(BASE_LAYOUT.spiritSize * scale, isNarrow ? 28 : 34, BASE_LAYOUT.spiritSize);
+    const spiritSize = Phaser.Math.Clamp(BASE_LAYOUT.spiritSize * scale, 34, BASE_LAYOUT.spiritSize);
     const slotGap = Math.max(spiritSize + 5, (shelfHeight - 58) / Math.max(1, this.capacity - 1));
 
     return {
+      isMobile: false,
       columns,
       rows,
+      rowPattern,
       gap,
       rowGap,
+      rowSpacingExtra: 28,
       shelfWidth,
       shelfHeight,
       spiritSize,
       slotGap,
+      spiritBottomOffset: 38,
       boardTop,
       selectedTopLift: Phaser.Math.Clamp(BASE_LAYOUT.selectedTopLift * scale, 7, BASE_LAYOUT.selectedTopLift)
     };
+  }
+
+  getMobileBoardLayout(width, height, shelfCount) {
+    const rowPattern = this.getMobileShelfRowPattern(shelfCount, width);
+    const rows = rowPattern.length;
+    const columns = Math.max(...rowPattern);
+    const margin = Phaser.Math.Clamp(width * 0.035, 8, 14);
+    const gap = Phaser.Math.Clamp(width * 0.025, 8, 12);
+    const rowGap = rows > 1 ? Phaser.Math.Clamp(height * 0.032, MOBILE_LAYOUT.rowGapMin, MOBILE_LAYOUT.rowGapMax) : 0;
+    const hudHeight = this.getHudLayout().bandHeight;
+    const boardTop = hudHeight + MOBILE_LAYOUT.topClearance;
+    const availableWidth = Math.max(280, width - margin * 2);
+    const rowSpacingExtra = 18;
+    const availableHeight = Math.max(
+      MOBILE_LAYOUT.minShelfHeight,
+      height - boardTop - MOBILE_LAYOUT.bottomMargin
+    );
+    const shelfWidth = Phaser.Math.Clamp(
+      (availableWidth - gap * (columns - 1)) / columns,
+      MOBILE_LAYOUT.minShelfWidth,
+      MOBILE_LAYOUT.maxShelfWidth
+    );
+    const heightPerRow = (availableHeight - (rows - 1) * (rowGap + rowSpacingExtra)) / rows;
+    const preferredShelfHeight = rows === 1 ? height * 0.34 : heightPerRow;
+    const shelfHeight = Phaser.Math.Clamp(
+      Math.min(preferredShelfHeight, heightPerRow),
+      MOBILE_LAYOUT.minShelfHeight,
+      MOBILE_LAYOUT.maxShelfHeight
+    );
+    const spiritBottomOffset = Phaser.Math.Clamp(shelfHeight * 0.15, 26, 34);
+    const slotGap = Math.max(30, (shelfHeight - spiritBottomOffset - 18) / Math.max(1, this.capacity - 1));
+    const spiritSize = Phaser.Math.Clamp(slotGap * 0.72, 30, 40);
+
+    return {
+      isMobile: true,
+      columns,
+      rows,
+      rowPattern,
+      gap,
+      rowGap,
+      rowSpacingExtra,
+      shelfWidth,
+      shelfHeight,
+      spiritSize,
+      slotGap,
+      spiritBottomOffset,
+      boardTop,
+      selectedTopLift: Phaser.Math.Clamp(spiritSize * 0.18, 5, 8)
+    };
+  }
+
+  getMobileShelfRowPattern(shelfCount, width) {
+    const availableWidth = width - Phaser.Math.Clamp(width * 0.035, 8, 14) * 2;
+    const fourShelfWidth = MOBILE_LAYOUT.minShelfWidth * 4 + 8 * 3;
+
+    if (shelfCount <= 3) return [shelfCount];
+    if (shelfCount === 4) return availableWidth >= fourShelfWidth ? [4] : [2, 2];
+    if (shelfCount === 5) return [3, 2];
+    if (shelfCount === 6) return [3, 3];
+    if (shelfCount === 7) return [4, 3];
+
+    return [4, shelfCount - 4];
   }
 
   getCurrentLayout() {
@@ -670,19 +792,20 @@ export default class SpiritSortScene extends Phaser.Scene {
   getShelfPositions() {
     const layout = this.getCurrentLayout();
     const positions = [];
+    let shelfIndex = 0;
 
-    for (let row = 0; row < layout.rows; row += 1) {
-      const rowStart = row * layout.columns;
-      const rowCount = Math.min(layout.columns, this.shelves.length - rowStart);
+    for (let row = 0; row < layout.rowPattern.length; row += 1) {
+      const rowCount = layout.rowPattern[row];
       const totalWidth = rowCount * layout.shelfWidth + (rowCount - 1) * layout.gap;
       const startX = (this.scale.width - totalWidth) / 2 + layout.shelfWidth / 2;
-      const y = layout.boardTop + row * (layout.shelfHeight + layout.rowGap + 28);
+      const y = layout.boardTop + row * (layout.shelfHeight + layout.rowGap + layout.rowSpacingExtra);
 
       for (let column = 0; column < rowCount; column += 1) {
-        positions[rowStart + column] = {
+        positions[shelfIndex] = {
           x: startX + column * (layout.shelfWidth + layout.gap),
           y
         };
+        shelfIndex += 1;
       }
     }
 
@@ -698,36 +821,46 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     const glowColor = selected ? COLORS.selected : COLORS.complete;
     const glowAlpha = selected ? 0.46 : complete ? 0.26 : 0;
-    const glow = this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + 28, layout.shelfHeight + 34, glowColor, glowAlpha);
+    const glowPadding = layout.isMobile ? 18 : 28;
+    const glow = this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + glowPadding, layout.shelfHeight + (layout.isMobile ? 24 : 34), glowColor, glowAlpha);
     glow.setStrokeStyle(selected ? 4 : 2, glowColor, selected || complete ? 0.85 : 0);
 
-    const roofHalf = layout.shelfWidth / 2 + 18;
+    const roofHalf = layout.shelfWidth / 2 + (layout.isMobile ? 8 : 18);
     const roofInset = Math.max(24, layout.shelfWidth / 2 - 2);
+    const roofY = layout.isMobile ? -8 : -20;
+    const roofPoints = layout.isMobile
+      ? [-roofHalf, 12, roofHalf, 12, roofInset, -8, -roofInset, -8]
+      : [-roofHalf, 18, roofHalf, 18, roofInset, -10, -roofInset, -10];
     const roof = this.add
-      .polygon(0, -20, [-roofHalf, 18, roofHalf, 18, roofInset, -10, -roofInset, -10], COLORS.shelfWoodDark, 1)
+      .polygon(0, roofY, roofPoints, COLORS.shelfWoodDark, 1)
       .setStrokeStyle(2, COLORS.shelfGold, 0.7);
-    const roofTrim = this.add.rectangle(0, -2, layout.shelfWidth + 34, 10, COLORS.shelfWoodLight, 1);
+    const roofTrim = this.add.rectangle(0, layout.isMobile ? 3 : -2, layout.shelfWidth + (layout.isMobile ? 14 : 34), layout.isMobile ? 6 : 10, COLORS.shelfWoodLight, 1);
     const back = this.add
       .rectangle(0, layout.shelfHeight / 2, layout.shelfWidth, layout.shelfHeight, COLORS.shelfInside, 0.86)
-      .setStrokeStyle(4, COLORS.shelfWoodLight, 0.92);
-    const innerGlow = this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth - 24, layout.shelfHeight - 28, 0xf7d783, 0.05);
+      .setStrokeStyle(layout.isMobile ? 3 : 4, COLORS.shelfWoodLight, 0.92);
+    const innerGlow = this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth - (layout.isMobile ? 16 : 24), layout.shelfHeight - (layout.isMobile ? 20 : 28), 0xf7d783, 0.05);
 
-    const leftPost = this.add.rectangle(-layout.shelfWidth / 2 + 9, layout.shelfHeight / 2, 14, layout.shelfHeight + 18, COLORS.shelfWood, 1);
-    const rightPost = this.add.rectangle(layout.shelfWidth / 2 - 9, layout.shelfHeight / 2, 14, layout.shelfHeight + 18, COLORS.shelfWood, 1);
-    const baseShadow = this.add.rectangle(0, layout.shelfHeight + 13, layout.shelfWidth + 34, 10, COLORS.shelfWoodDark, 1);
-    const base = this.add.rectangle(0, layout.shelfHeight + 5, layout.shelfWidth + 30, 20, COLORS.shelfWoodLight, 1);
-    const top = this.add.rectangle(0, 11, layout.shelfWidth + 10, 8, COLORS.shelfWoodLight, 0.95);
+    const postWidth = layout.isMobile ? 10 : 14;
+    const postInset = layout.isMobile ? 7 : 9;
+    const leftPost = this.add.rectangle(-layout.shelfWidth / 2 + postInset, layout.shelfHeight / 2, postWidth, layout.shelfHeight + (layout.isMobile ? 10 : 18), COLORS.shelfWood, 1);
+    const rightPost = this.add.rectangle(layout.shelfWidth / 2 - postInset, layout.shelfHeight / 2, postWidth, layout.shelfHeight + (layout.isMobile ? 10 : 18), COLORS.shelfWood, 1);
+    const baseShadow = this.add.rectangle(0, layout.shelfHeight + (layout.isMobile ? 8 : 13), layout.shelfWidth + (layout.isMobile ? 22 : 34), layout.isMobile ? 6 : 10, COLORS.shelfWoodDark, 1);
+    const base = this.add.rectangle(0, layout.shelfHeight + (layout.isMobile ? 2 : 5), layout.shelfWidth + (layout.isMobile ? 20 : 30), layout.isMobile ? 14 : 20, COLORS.shelfWoodLight, 1);
+    const top = this.add.rectangle(0, layout.isMobile ? 8 : 11, layout.shelfWidth + (layout.isMobile ? 8 : 10), layout.isMobile ? 6 : 8, COLORS.shelfWoodLight, 0.95);
 
     const planks = [];
     for (let i = 1; i < this.capacity; i += 1) {
-      planks.push(this.add.rectangle(0, layout.shelfHeight - 62 - i * layout.slotGap, layout.shelfWidth - 26, 3, COLORS.shelfWoodLight, 0.24));
+      const plankY = layout.isMobile
+        ? layout.shelfHeight - layout.spiritBottomOffset - (i - 0.5) * layout.slotGap
+        : layout.shelfHeight - 62 - i * layout.slotGap;
+      planks.push(this.add.rectangle(0, plankY, layout.shelfWidth - (layout.isMobile ? 18 : 26), layout.isMobile ? 2 : 3, COLORS.shelfWoodLight, layout.isMobile ? 0.2 : 0.24));
     }
 
-    const charm = this.add.circle(0, layout.shelfHeight + 5, 5, COLORS.shelfGold, 0.8);
-    const leftKnot = this.add.circle(-layout.shelfWidth / 2 + 9, 46, 3, COLORS.shelfWoodDark, 0.7);
-    const rightKnot = this.add.circle(layout.shelfWidth / 2 - 9, Math.min(116, layout.shelfHeight - 36), 3, COLORS.shelfWoodDark, 0.7);
+    const charm = this.add.circle(0, layout.shelfHeight + (layout.isMobile ? 2 : 5), layout.isMobile ? 4 : 5, COLORS.shelfGold, 0.8);
+    const leftKnot = this.add.circle(-layout.shelfWidth / 2 + postInset, layout.isMobile ? 38 : 46, layout.isMobile ? 2.5 : 3, COLORS.shelfWoodDark, 0.7);
+    const rightKnot = this.add.circle(layout.shelfWidth / 2 - postInset, Math.min(layout.isMobile ? 96 : 116, layout.shelfHeight - 36), layout.isMobile ? 2.5 : 3, COLORS.shelfWoodDark, 0.7);
 
-    const zone = this.add.zone(0, layout.shelfHeight / 2, Math.max(72, layout.shelfWidth + 32), layout.shelfHeight + 46);
+    const zone = this.add.zone(0, layout.shelfHeight / 2, Math.max(72, layout.shelfWidth + (layout.isMobile ? 24 : 32)), layout.shelfHeight + (layout.isMobile ? 36 : 46));
     zone.setInteractive({ useHandCursor: true });
     zone.on("pointerdown", () => this.handleShelfTap(index));
 
@@ -749,8 +882,9 @@ export default class SpiritSortScene extends Phaser.Scene {
     ]);
 
     if (selected) {
-      const selectorHalo = this.add.circle(0, -32, 18, COLORS.selected, 0.3);
-      const selectorArrow = this.add.triangle(0, -29, 0, 11, -11, -8, 11, -8, COLORS.selected, 0.92);
+      const selectorY = layout.isMobile ? -23 : -32;
+      const selectorHalo = this.add.circle(0, selectorY, layout.isMobile ? 14 : 18, COLORS.selected, 0.3);
+      const selectorArrow = this.add.triangle(0, selectorY + 3, 0, 11, -11, -8, 11, -8, COLORS.selected, 0.92);
       container.add([selectorHalo, selectorArrow]);
     }
 
@@ -1091,7 +1225,7 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     return {
       x: 0,
-      y: layout.shelfHeight - 38 - stackIndex * layout.slotGap
+      y: layout.shelfHeight - layout.spiritBottomOffset - stackIndex * layout.slotGap
     };
   }
 
@@ -1249,9 +1383,12 @@ export default class SpiritSortScene extends Phaser.Scene {
 
   createHintPulse(x, y, color) {
     const layout = this.getCurrentLayout();
+    const horizontalPadding = layout.isMobile ? 20 : 42;
+    const verticalPadding = layout.isMobile ? 34 : 56;
+
     return this.add
-      .rectangle(x, y + layout.shelfHeight / 2, layout.shelfWidth + 42, layout.shelfHeight + 56, color, 0.22)
-      .setStrokeStyle(4, color, 0.9)
+      .rectangle(x, y + layout.shelfHeight / 2, layout.shelfWidth + horizontalPadding, layout.shelfHeight + verticalPadding, color, layout.isMobile ? 0.18 : 0.22)
+      .setStrokeStyle(layout.isMobile ? 3 : 4, color, 0.9)
       .setDepth(37);
   }
 
@@ -1274,7 +1411,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     const layout = this.getCurrentLayout();
 
     const flash = this.add
-      .rectangle(view.position.x, view.position.y + layout.shelfHeight / 2, layout.shelfWidth + 34, layout.shelfHeight + 40, COLORS.invalid, 0.34)
+      .rectangle(view.position.x, view.position.y + layout.shelfHeight / 2, layout.shelfWidth + (layout.isMobile ? 24 : 34), layout.shelfHeight + (layout.isMobile ? 30 : 40), COLORS.invalid, 0.34)
       .setDepth(35);
     flash.setStrokeStyle(3, COLORS.invalid, 0.85);
 

@@ -13,7 +13,6 @@ const COLORS = {
   backgroundBottom: 0x262142,
   backgroundMid: 0x1d1a38,
   shrineShadow: 0x101225,
-  shelfWood: 0x76513c,
   shelfWoodDark: 0x4d3028,
   shelfWoodLight: 0xa87956,
   shelfGold: 0xd7aa68,
@@ -25,6 +24,12 @@ const COLORS = {
   mutedText: "#c7bfe8"
 };
 
+const SCROLL = {
+  tapThreshold: 8,
+  wheelStep: 0.8,
+  dragMultiplier: 1
+};
+
 export default class LevelSelectScene extends Phaser.Scene {
   constructor() {
     super("LevelSelectScene");
@@ -34,12 +39,23 @@ export default class LevelSelectScene extends Phaser.Scene {
     this.progress = loadProgress(SPIRIT_SORT_LEVELS);
     this.container = null;
     this.confirmPanel = null;
+    this.scrollY = 0;
+    this.scrollMax = 0;
+    this.dragState = null;
+    this.cardTapState = null;
+
     this.createLevelSelect();
     this.scale.on("resize", this.handleResize, this);
+    this.input.on("wheel", this.handleWheel, this);
+    this.input.on("pointermove", this.handlePointerMove, this);
+    this.input.on("pointerup", this.handlePointerUp, this);
     this.input.keyboard?.on("keydown-ESC", this.goBack, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.handleResize, this);
+      this.input.off("wheel", this.handleWheel, this);
+      this.input.off("pointermove", this.handlePointerMove, this);
+      this.input.off("pointerup", this.handlePointerUp, this);
       this.input.keyboard?.off("keydown-ESC", this.goBack, this);
     });
   }
@@ -49,6 +65,8 @@ export default class LevelSelectScene extends Phaser.Scene {
   }
 
   createLevelSelect() {
+    const previousScroll = this.scrollY ?? 0;
+
     if (this.container) {
       this.container.destroy(true);
     }
@@ -59,8 +77,8 @@ export default class LevelSelectScene extends Phaser.Scene {
 
     this.createBackground(width, height);
     this.createHeader(width, layout);
-    this.createLevelGrid(width, layout);
-    this.createFooterButtons(width, height, layout);
+    this.createLevelGrid(width, layout, previousScroll);
+    this.createFooterButtons(width, layout);
   }
 
   getLayout(width, height) {
@@ -74,7 +92,9 @@ export default class LevelSelectScene extends Phaser.Scene {
     const gridTop = isMobile ? 106 : 136;
     const titleSize = isMobile ? 26 : 38;
     const subtitleSize = isMobile ? 12 : 16;
+    const buttonHeight = isMobile ? 32 : 38;
     const buttonY = height - (isMobile ? 36 : 42);
+    const gridBottom = Math.max(gridTop + 92, buttonY - buttonHeight / 2 - (isMobile ? 16 : 22));
 
     return {
       isMobile,
@@ -83,10 +103,12 @@ export default class LevelSelectScene extends Phaser.Scene {
       cardWidth,
       cardHeight,
       gridTop,
+      gridBottom,
+      gridHeight: Math.max(90, gridBottom - gridTop),
       titleSize,
       subtitleSize,
       buttonY,
-      buttonHeight: isMobile ? 32 : 38,
+      buttonHeight,
       buttonFontSize: isMobile ? 12 : 15
     };
   }
@@ -149,19 +171,75 @@ export default class LevelSelectScene extends Phaser.Scene {
     this.container.add([title, subtitle]);
   }
 
-  createLevelGrid(width, layout) {
+  createLevelGrid(width, layout, previousScroll) {
     const rows = Math.ceil(SPIRIT_SORT_LEVELS.length / layout.columns);
     const totalWidth = layout.columns * layout.cardWidth + (layout.columns - 1) * layout.gap;
     const startX = width / 2 - totalWidth / 2 + layout.cardWidth / 2;
+    const contentHeight = rows * layout.cardHeight + (rows - 1) * layout.gap;
+    const frameWidth = Math.min(width - (layout.isMobile ? 18 : 40), totalWidth + (layout.isMobile ? 14 : 24));
+
+    this.gridLayout = layout;
+    this.scrollMax = Math.max(0, contentHeight - layout.gridHeight);
+
+    const scrollZone = this.add.zone(width / 2, layout.gridTop + layout.gridHeight / 2, width, layout.gridHeight);
+    scrollZone.setInteractive();
+    scrollZone.on("pointerdown", (pointer) => this.beginGridDrag(pointer));
+    this.container.add(scrollZone);
+
+    const frame = this.add
+      .rectangle(width / 2, layout.gridTop + layout.gridHeight / 2, frameWidth, layout.gridHeight, 0x17142d, 0.16)
+      .setStrokeStyle(1, COLORS.shelfGold, 0.18);
+    this.container.add(frame);
+
+    const maskGraphics = this.add.graphics();
+    maskGraphics.fillStyle(0xffffff, 1);
+    maskGraphics.fillRect(0, layout.gridTop, width, layout.gridHeight);
+    maskGraphics.setVisible(false);
+    this.container.add(maskGraphics);
+
+    this.gridContainer = this.add.container(0, layout.gridTop);
+    this.gridContainer.setMask(maskGraphics.createGeometryMask());
+    this.container.add(this.gridContainer);
 
     SPIRIT_SORT_LEVELS.forEach((level, index) => {
       const row = Math.floor(index / layout.columns);
       const column = index % layout.columns;
       const x = startX + column * (layout.cardWidth + layout.gap);
-      const y = layout.gridTop + row * (layout.cardHeight + layout.gap);
+      const y = layout.cardHeight / 2 + row * (layout.cardHeight + layout.gap);
       const card = this.createLevelCard(x, y, layout, level);
-      this.container.add(card);
+      this.gridContainer.add(card);
     });
+
+    this.createScrollChrome(width, layout);
+    this.setGridScroll(previousScroll);
+  }
+
+  createScrollChrome(width, layout) {
+    const topFade = this.add.rectangle(width / 2, layout.gridTop + 7, width, 14, 0x15162f, 0.52);
+    const bottomFade = this.add.rectangle(width / 2, layout.gridBottom - 7, width, 14, 0x15162f, 0.56);
+    const hintText = layout.isMobile ? "drag to scroll" : "wheel or middle-drag";
+    const scrollHint = this.add
+      .text(width / 2, layout.gridBottom + (layout.isMobile ? 7 : 10), hintText, {
+        fontFamily: "Arial",
+        fontSize: `${layout.isMobile ? 10 : 12}px`,
+        color: COLORS.mutedText,
+        fontStyle: "bold"
+      })
+      .setOrigin(0.5);
+    scrollHint.setShadow(0, 1, "#050511", 3);
+
+    const scrollbarX = width - (layout.isMobile ? 8 : 16);
+    const scrollTrack = this.add.rectangle(scrollbarX, layout.gridTop + layout.gridHeight / 2, 3, layout.gridHeight - 14, COLORS.shelfWoodDark, 0.42);
+    const scrollThumb = this.add.rectangle(scrollbarX, layout.gridTop + 10, 4, 34, COLORS.blessedGold, 0.72);
+
+    this.container.add([topFade, bottomFade, scrollHint, scrollTrack, scrollThumb]);
+    this.scrollChrome = {
+      topFade,
+      bottomFade,
+      scrollHint,
+      scrollTrack,
+      scrollThumb
+    };
   }
 
   createLevelCard(x, y, layout, level) {
@@ -172,11 +250,11 @@ export default class LevelSelectScene extends Phaser.Scene {
     const blessed = (level.blessedShelves ?? []).length > 0;
     const container = this.add.container(x, y);
     const fill = unlocked ? 0x342538 : 0x17142d;
-    const stroke = completed ? COLORS.complete : current ? COLORS.selected : COLORS.shelfGold;
+    const stroke = completed ? COLORS.complete : current ? COLORS.selected : blessed ? COLORS.blessedGold : COLORS.shelfGold;
     const alpha = unlocked ? 0.96 : 0.58;
     const background = this.add
       .rectangle(0, 0, layout.cardWidth, layout.cardHeight, fill, alpha)
-      .setStrokeStyle(current ? 3 : 2, stroke, unlocked ? 0.82 : 0.34);
+      .setStrokeStyle(current ? 3 : blessed ? 2.5 : 2, stroke, unlocked ? 0.82 : 0.34);
     const shine = this.add.rectangle(0, -layout.cardHeight * 0.34, layout.cardWidth - 12, 4, 0xffe2a5, unlocked ? 0.14 : 0.05);
     const levelText = this.add
       .text(0, completed ? -12 : -4, `${level.id}`, {
@@ -198,21 +276,31 @@ export default class LevelSelectScene extends Phaser.Scene {
     container.add([background, shine, levelText, statusText]);
 
     if (blessed) {
-      const markerX = layout.cardWidth / 2 - (layout.isMobile ? 9 : 13);
-      const markerY = -layout.cardHeight / 2 + (layout.isMobile ? 9 : 13);
-      const markerGlow = this.add.circle(markerX, markerY, layout.isMobile ? 8 : 10, COLORS.blessed, unlocked ? 0.16 : 0.08);
-      const marker = this.add.star(markerX, markerY, 5, layout.isMobile ? 2.4 : 3, layout.isMobile ? 5.5 : 7, COLORS.blessedGold, unlocked ? 0.9 : 0.42);
-      container.add([markerGlow, marker]);
+      const markerX = layout.cardWidth / 2 - (layout.isMobile ? 10 : 14);
+      const markerY = -layout.cardHeight / 2 + (layout.isMobile ? 10 : 14);
+      const markerGlow = this.add.circle(markerX, markerY, layout.isMobile ? 10 : 13, COLORS.blessed, unlocked ? 0.28 : 0.1);
+      const markerBadge = this.add.circle(markerX, markerY, layout.isMobile ? 7 : 9, 0x211c37, unlocked ? 0.94 : 0.64)
+        .setStrokeStyle(1.5, COLORS.blessedGold, unlocked ? 0.84 : 0.32);
+      const marker = this.add.star(markerX, markerY, 5, layout.isMobile ? 2.8 : 3.4, layout.isMobile ? 6.5 : 8, COLORS.blessedGold, unlocked ? 0.98 : 0.44);
+      const rune = this.add.circle(markerX, markerY, layout.isMobile ? 1.6 : 2, COLORS.blessed, unlocked ? 0.9 : 0.34);
+      container.add([markerGlow, markerBadge, marker, rune]);
     }
+
     container.setSize(layout.cardWidth, layout.cardHeight);
 
     if (unlocked) {
       container.setInteractive({ useHandCursor: true });
-      container.on("pointerdown", () => this.startLevel(level.id));
-      container.on("pointerover", () => background.setFillStyle(0x4b3b68, 0.98));
+      container.on("pointerdown", (pointer) => this.handleCardPointerDown(pointer, level.id));
+      container.on("pointerup", (pointer) => this.handleCardPointerUp(pointer, level.id));
+      container.on("pointerover", (pointer) => {
+        if (this.isPointerInGridBounds(pointer)) {
+          background.setFillStyle(0x4b3b68, 0.98);
+        }
+      });
       container.on("pointerout", () => background.setFillStyle(fill, alpha));
     } else {
-      const lock = this.add.text(layout.cardWidth * 0.28, -layout.cardHeight * 0.28, "LOCK", {
+      const lockX = blessed ? -layout.cardWidth * 0.28 : layout.cardWidth * 0.28;
+      const lock = this.add.text(lockX, -layout.cardHeight * 0.28, "LOCK", {
         fontFamily: "Arial",
         fontSize: `${layout.isMobile ? 8 : 9}px`,
         color: "#7c7399",
@@ -231,7 +319,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     return "open";
   }
 
-  createFooterButtons(width, height, layout) {
+  createFooterButtons(width, layout) {
     const resetWidth = layout.isMobile ? 94 : 124;
     const backWidth = layout.isMobile ? 78 : 102;
     const gap = layout.isMobile ? 10 : 14;
@@ -262,6 +350,160 @@ export default class LevelSelectScene extends Phaser.Scene {
     container.on("pointerover", () => background.setFillStyle(0x4b3b68, 0.98));
     container.on("pointerout", () => background.setFillStyle(secondary ? 0x211c37 : 0x342538, 0.96));
     return container;
+  }
+
+  handleWheel(pointer, _gameObjects, _deltaX, deltaY) {
+    if (this.confirmPanel || this.scrollMax <= 0 || !this.isPointerInGridBounds(pointer)) return;
+
+    this.setGridScroll(this.scrollY + deltaY * SCROLL.wheelStep);
+  }
+
+  beginGridDrag(pointer) {
+    if (!this.canBeginGridDrag(pointer)) return;
+
+    this.dragState = {
+      pointerId: pointer.id,
+      startX: pointer.x,
+      startY: pointer.y,
+      lastY: pointer.y,
+      moved: false
+    };
+  }
+
+  canBeginGridDrag(pointer) {
+    if (this.confirmPanel || this.scrollMax <= 0 || !this.isPointerInGridBounds(pointer)) return false;
+
+    const isMiddle = this.isMiddlePointer(pointer);
+    const isTouchLike = this.gridLayout?.isMobile || pointer.pointerType === "touch";
+    return isMiddle || isTouchLike;
+  }
+
+  handlePointerMove(pointer) {
+    this.updateCardTapMovement(pointer);
+
+    if (!this.dragState || this.dragState.pointerId !== pointer.id) return;
+
+    const totalDistance = Phaser.Math.Distance.Between(
+      this.dragState.startX,
+      this.dragState.startY,
+      pointer.x,
+      pointer.y
+    );
+    const deltaY = pointer.y - this.dragState.lastY;
+
+    if (totalDistance >= SCROLL.tapThreshold) {
+      this.dragState.moved = true;
+    }
+
+    if (this.dragState.moved) {
+      this.setGridScroll(this.scrollY - deltaY * SCROLL.dragMultiplier);
+    }
+
+    this.dragState.lastY = pointer.y;
+  }
+
+  handlePointerUp(pointer) {
+    if (this.dragState?.pointerId === pointer.id) {
+      this.dragState = null;
+    }
+  }
+
+  handleCardPointerDown(pointer, levelId) {
+    if (this.confirmPanel || !this.isPointerInGridBounds(pointer)) return;
+
+    this.cardTapState = {
+      pointerId: pointer.id,
+      levelId,
+      startX: pointer.x,
+      startY: pointer.y,
+      moved: false,
+      startedWithMiddle: this.isMiddlePointer(pointer)
+    };
+
+    this.beginGridDrag(pointer);
+  }
+
+  handleCardPointerUp(pointer, levelId) {
+    if (this.confirmPanel || !this.cardTapState || this.cardTapState.pointerId !== pointer.id) return;
+
+    const wasDrag = this.cardTapState.moved || this.dragState?.moved || this.cardTapState.startedWithMiddle;
+    const sameLevel = this.cardTapState.levelId === levelId;
+    const insideGrid = this.isPointerInGridBounds(pointer);
+
+    this.cardTapState = null;
+
+    if (wasDrag || !sameLevel || !insideGrid) return;
+
+    this.startLevel(levelId);
+  }
+
+  updateCardTapMovement(pointer) {
+    if (!this.cardTapState || this.cardTapState.pointerId !== pointer.id) return;
+
+    const totalDistance = Phaser.Math.Distance.Between(
+      this.cardTapState.startX,
+      this.cardTapState.startY,
+      pointer.x,
+      pointer.y
+    );
+
+    if (totalDistance >= SCROLL.tapThreshold) {
+      this.cardTapState.moved = true;
+    }
+  }
+
+  setGridScroll(nextScrollY) {
+    this.scrollY = Phaser.Math.Clamp(nextScrollY, 0, this.scrollMax);
+
+    if (this.gridContainer && this.gridLayout) {
+      this.gridContainer.y = this.gridLayout.gridTop - this.scrollY;
+    }
+
+    this.updateScrollChrome();
+  }
+
+  updateScrollChrome() {
+    if (!this.scrollChrome || !this.gridLayout) return;
+
+    const enabled = this.scrollMax > 0;
+    const atTop = this.scrollY <= 1;
+    const atBottom = this.scrollY >= this.scrollMax - 1;
+    const { topFade, bottomFade, scrollHint, scrollTrack, scrollThumb } = this.scrollChrome;
+
+    topFade.setAlpha(enabled && !atTop ? 0.52 : 0);
+    bottomFade.setAlpha(enabled && !atBottom ? 0.56 : 0);
+    scrollHint.setAlpha(enabled && !atBottom ? 0.74 : 0);
+    scrollTrack.setAlpha(enabled ? 0.42 : 0);
+    scrollThumb.setAlpha(enabled ? 0.72 : 0);
+
+    if (!enabled) return;
+
+    const trackHeight = this.gridLayout.gridHeight - 14;
+    const thumbHeight = Phaser.Math.Clamp(
+      (this.gridLayout.gridHeight / (this.gridLayout.gridHeight + this.scrollMax)) * trackHeight,
+      28,
+      trackHeight
+    );
+    const travel = trackHeight - thumbHeight;
+    const progress = this.scrollMax > 0 ? this.scrollY / this.scrollMax : 0;
+
+    scrollThumb.height = thumbHeight;
+    scrollThumb.y = this.gridLayout.gridTop + 7 + thumbHeight / 2 + travel * progress;
+  }
+
+  isPointerInGridBounds(pointer) {
+    if (!this.gridLayout) return false;
+
+    return (
+      pointer.x >= 0 &&
+      pointer.x <= this.scale.width &&
+      pointer.y >= this.gridLayout.gridTop &&
+      pointer.y <= this.gridLayout.gridBottom
+    );
+  }
+
+  isMiddlePointer(pointer) {
+    return Boolean(pointer.middleButtonDown?.()) || pointer.button === 1 || pointer.event?.button === 1;
   }
 
   showResetConfirm() {
@@ -306,13 +548,15 @@ export default class LevelSelectScene extends Phaser.Scene {
   }
 
   startLevel(levelId) {
-    if (!isLevelUnlocked(this.progress, levelId)) return;
+    if (this.confirmPanel || !isLevelUnlocked(this.progress, levelId)) return;
 
     this.progress = markLevelStarted(this.progress, levelId, SPIRIT_SORT_LEVELS);
     this.scene.start("SpiritSortScene", { levelId });
   }
 
   goBack() {
+    if (this.confirmPanel) return;
+
     this.scene.start("TitleScene");
   }
 }

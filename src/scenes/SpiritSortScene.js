@@ -820,8 +820,16 @@ export default class SpiritSortScene extends Phaser.Scene {
     const glow = this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + glowPadding, layout.shelfHeight + (layout.isMobile ? 24 : 34), glowColor, glowAlpha);
     glow.setStrokeStyle(selected ? 4 : 2, glowColor, selected || complete ? 0.85 : 0);
     const blessedAura = blessed
-      ? this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + glowPadding + 8, layout.shelfHeight + (layout.isMobile ? 32 : 44), COLORS.blessed, 0.12)
-        .setStrokeStyle(2, COLORS.blessedGold, 0.42)
+      ? this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + glowPadding + 18, layout.shelfHeight + (layout.isMobile ? 42 : 58), COLORS.blessed, 0.18)
+        .setStrokeStyle(layout.isMobile ? 3 : 4, COLORS.blessedGold, 0.72)
+      : null;
+    const blessedGoldAura = blessed
+      ? this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + glowPadding + 30, layout.shelfHeight + (layout.isMobile ? 56 : 76), COLORS.blessedGold, 0.07)
+        .setStrokeStyle(2, COLORS.blessed, 0.42)
+      : null;
+    const blessedPulse = blessed
+      ? this.add.rectangle(0, layout.shelfHeight / 2, layout.shelfWidth + glowPadding + 10, layout.shelfHeight + (layout.isMobile ? 34 : 48), COLORS.blessed, 0.02)
+        .setStrokeStyle(layout.isMobile ? 3 : 4, COLORS.blessed, 0.82)
       : null;
 
     const roofHalf = layout.shelfWidth / 2 + (layout.isMobile ? 8 : 18);
@@ -843,7 +851,7 @@ export default class SpiritSortScene extends Phaser.Scene {
       layout.shelfWidth - (layout.isMobile ? 16 : 24),
       layout.shelfHeight - (layout.isMobile ? 20 : 28),
       blessed ? COLORS.blessed : 0xf7d783,
-      blessed ? 0.09 : 0.05
+      blessed ? 0.16 : 0.05
     );
 
     const postWidth = layout.isMobile ? 10 : 14;
@@ -864,8 +872,10 @@ export default class SpiritSortScene extends Phaser.Scene {
 
     const charm = this.add.circle(0, layout.shelfHeight + (layout.isMobile ? 2 : 5), layout.isMobile ? 4 : 5, COLORS.shelfGold, 0.8);
     const blessedMark = blessed
-      ? this.add.star(layout.shelfWidth / 2 - (layout.isMobile ? 16 : 20), layout.isMobile ? -8 : -22, 5, layout.isMobile ? 4 : 5, layout.isMobile ? 9 : 11, COLORS.blessedGold, 0.86)
+      ? this.add.star(layout.shelfWidth / 2 - (layout.isMobile ? 17 : 22), layout.isMobile ? -8 : -22, 5, layout.isMobile ? 5 : 6, layout.isMobile ? 12 : 15, COLORS.blessedGold, 0.96)
       : null;
+    const blessedEmblem = blessed ? this.createBlessedShelfEmblem(layout) : null;
+    const blessedMoon = blessed ? this.createBlessedShelfMoonMarker(layout) : null;
     const leftKnot = this.add.circle(-layout.shelfWidth / 2 + postInset, layout.isMobile ? 38 : 46, layout.isMobile ? 2.5 : 3, COLORS.shelfWoodDark, 0.7);
     const rightKnot = this.add.circle(layout.shelfWidth / 2 - postInset, Math.min(layout.isMobile ? 96 : 116, layout.shelfHeight - 36), layout.isMobile ? 2.5 : 3, COLORS.shelfWoodDark, 0.7);
 
@@ -874,7 +884,9 @@ export default class SpiritSortScene extends Phaser.Scene {
     zone.on("pointerdown", () => this.handleShelfTap(index));
 
     container.add([
+      blessedGoldAura,
       blessedAura,
+      blessedPulse,
       glow,
       roof,
       roofTrim,
@@ -888,12 +900,21 @@ export default class SpiritSortScene extends Phaser.Scene {
       top,
       charm,
       blessedMark,
+      blessedEmblem,
+      blessedMoon,
       leftKnot,
       rightKnot
     ].filter(Boolean));
 
     if (blessed) {
-      this.applyBlessedShelfAnimation(blessedAura, blessedMark);
+      this.applyBlessedShelfAnimation({
+        aura: blessedAura,
+        goldAura: blessedGoldAura,
+        pulse: blessedPulse,
+        mark: blessedMark,
+        emblem: blessedEmblem,
+        moon: blessedMoon
+      });
     }
 
     if (selected) {
@@ -1032,6 +1053,29 @@ export default class SpiritSortScene extends Phaser.Scene {
     return this.add.ellipse(-size * 0.14, -size * 0.28, size * 0.62, size * 0.3, 0xffe8b2, 0.1);
   }
 
+  createBlessedShelfEmblem(layout) {
+    const emblem = this.add.container(0, layout.isMobile ? 8 : -1);
+    const badgeRadius = layout.isMobile ? 13 : 17;
+    const badge = this.add.circle(0, 0, badgeRadius, 0x241b34, 0.94).setStrokeStyle(2, COLORS.blessedGold, 0.92);
+    const halo = this.add.circle(0, 0, badgeRadius + 5, COLORS.blessed, 0.2);
+    const rune = this.add.star(0, 0, 6, layout.isMobile ? 3.5 : 4.5, layout.isMobile ? 8 : 10, COLORS.blessedGold, 0.98);
+    const core = this.add.circle(0, 0, layout.isMobile ? 2.5 : 3, COLORS.blessed, 0.9);
+
+    emblem.add([halo, badge, rune, core]);
+    return emblem;
+  }
+
+  createBlessedShelfMoonMarker(layout) {
+    const marker = this.add.container(-layout.shelfWidth / 2 + (layout.isMobile ? 15 : 20), layout.isMobile ? -14 : -30);
+    const glow = this.add.circle(0, 0, layout.isMobile ? 11 : 14, COLORS.blessed, 0.22);
+    const moon = this.add.circle(0, 0, layout.isMobile ? 7 : 9, COLORS.blessedGold, 0.92);
+    const cutout = this.add.circle(layout.isMobile ? 3 : 4, -1, layout.isMobile ? 7 : 9, COLORS.backgroundTop, 1);
+    const spark = this.add.star(layout.isMobile ? 11 : 15, layout.isMobile ? -7 : -9, 4, 2, layout.isMobile ? 4 : 5, COLORS.blessed, 0.92);
+
+    marker.add([glow, moon, cutout, spark]);
+    return marker;
+  }
+
   applySpiritIdleAnimation(spirit, shelfIndex, stackIndex, isSelectedTop = false, spiritType = "fire") {
     if (!spirit) return;
 
@@ -1098,13 +1142,13 @@ export default class SpiritSortScene extends Phaser.Scene {
     this.boardTweenTargets = [];
   }
 
-  applyBlessedShelfAnimation(aura, mark) {
+  applyBlessedShelfAnimation({ aura, goldAura, pulse, mark, emblem, moon }) {
     if (aura) {
       this.tweens.add({
         targets: aura,
-        alpha: 0.2,
-        scaleX: 1.018,
-        scaleY: 1.01,
+        alpha: 0.28,
+        scaleX: 1.026,
+        scaleY: 1.018,
         duration: 1700,
         yoyo: true,
         repeat: -1,
@@ -1113,17 +1157,73 @@ export default class SpiritSortScene extends Phaser.Scene {
       this.trackBoardTweenTargets(aura);
     }
 
+    if (goldAura) {
+      this.tweens.add({
+        targets: goldAura,
+        alpha: 0.14,
+        scaleX: 1.018,
+        scaleY: 1.012,
+        duration: 2200,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+      this.trackBoardTweenTargets(goldAura);
+    }
+
+    if (pulse) {
+      this.tweens.add({
+        targets: pulse,
+        alpha: 0.26,
+        scaleX: 1.045,
+        scaleY: 1.026,
+        duration: 1450,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+      this.trackBoardTweenTargets(pulse);
+    }
+
     if (mark) {
       this.tweens.add({
         targets: mark,
-        alpha: 0.58,
-        angle: 8,
+        alpha: 0.7,
+        angle: 10,
+        scaleX: 1.08,
+        scaleY: 1.08,
         duration: 1900,
         yoyo: true,
         repeat: -1,
         ease: "Sine.easeInOut"
       });
       this.trackBoardTweenTargets(mark);
+    }
+
+    if (emblem) {
+      this.tweens.add({
+        targets: emblem,
+        scaleX: 1.06,
+        scaleY: 1.06,
+        duration: 1600,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+      this.trackBoardTweenTargets(emblem);
+    }
+
+    if (moon) {
+      this.tweens.add({
+        targets: moon,
+        y: moon.y - 4,
+        angle: -8,
+        duration: 2100,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
+      this.trackBoardTweenTargets(moon);
     }
   }
 
@@ -1164,7 +1264,7 @@ export default class SpiritSortScene extends Phaser.Scene {
     title.setShadow(0, 2, "#050511", 4);
 
     const detail = this.add
-      .text(width / 2, panelY - 12, "This glowing shelf can receive any spirit type.\nUse it as a magical resting place.", {
+      .text(width / 2, panelY - 12, "Look for the glowing star shelf.\nIt can receive any spirit type.", {
         fontFamily: "Arial",
         fontSize: `${bodySize}px`,
         color: COLORS.mutedText,
